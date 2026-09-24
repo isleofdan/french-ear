@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>French ear</title>
+<meta name="theme-color" content="#1c4f7a">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/app.css">
+<script src="/common.js"></script>
+</head>
+<body>
+<div id="top"></div>
+<main class="page">
+  <div class="home">
+    <div class="wide stack" style="gap:4px">
+      <h1 class="title">French ear</h1>
+      <p class="muted" style="margin:0">Hear the French that the page never shows.</p>
+    </div>
+
+    <form class="big-box" id="link-form">
+      <label for="link">Paste a YouTube link</label>
+      <input id="link" name="link" type="text" inputmode="url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=…" required>
+      <div class="hint">From the video's Share button. On an Android phone you can also Share straight to French ear.</div>
+      <div class="msg" id="link-msg" role="alert"></div>
+      <button class="go" type="submit" id="link-go">Show me the lines</button>
+    </form>
+
+    <form class="panel stack" id="typed-form">
+      <label for="typed">Type or paste a line</label>
+      <textarea id="typed" name="text" rows="2" placeholder="Je ne sais pas ce que tu veux dire." required></textarea>
+      <div class="msg" id="typed-msg" role="alert"></div>
+      <button class="secondary" type="submit" id="typed-go">How is it said?</button>
+    </form>
+
+    <section class="panel stack" aria-labelledby="pat-head">
+      <div class="row-head">
+        <h2 class="title" id="pat-head">Your patterns</h2>
+        <a href="/patterns">See them</a>
+      </div>
+      <div class="counts">
+        <div class="count solid"><b id="n-solid">–</b><span>solid</span></div>
+        <div class="count shaky"><b id="n-shaky">–</b><span>shaky</span></div>
+        <div class="count notmet"><b id="n-notmet">–</b><span>not met yet</span></div>
+      </div>
+    </section>
+
+    <section class="stack" aria-labelledby="recent-head">
+      <div class="row-head">
+        <h2 class="title" id="recent-head">Last videos</h2>
+        <a href="/kept">Kept lines</a>
+      </div>
+      <ul class="list" id="recent"></ul>
+    </section>
+  </div>
+</main>
+<script src="/home.js"></script>
+</body>
+</html>
