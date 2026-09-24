@@ -60,7 +60,7 @@ Session: french-ear-two (cloud). Surface: cloud (`flyctl version` failed, as exp
 
 ## Dan's decisions this session
 
-- Merged pull requests 1 and 2 himself. The 502 fix-up re-run was the session's.
+- Merged pull requests 1 and 2 himself. The re-run of the failed publish (run 3) was the session's.
 - Asked why this is the first app where he has to tap Merge. The answer given:
   - This app publishes whenever code lands on `main` (GitHub's deploy workflow), so getting code onto `main` is the publish step.
   - The standing permission from 4 September lives only on the laptop. This cloud session loads no permission rules at all.
