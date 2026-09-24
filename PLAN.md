@@ -40,3 +40,34 @@ downloading any video or audio.
   push to `main` even with his word. The repo's default branch is still
   `claude/eloquent-hopper-727dun` (the first branch pushed to the empty repo).
 - Report: `docs/reports/french-ear-one-report.md`.
+
+## Session two (french-ear-two, 24 Sep 2026): the transcript pasted in
+
+- **Lines from a paste.** Under the link box, "Paste the transcript here (from
+  YouTube's Show transcript panel)". With a paste, the caption fetch is
+  skipped; the paste is read by `lib/transcript.js` (a time on its own line or
+  before the text, m:ss or h:mm:ss, or no times; also the whole YouTube page
+  copied with Ctrl+A, from which the transcript is picked out). The video
+  records `caption_track = 'pasted'`; the "as said" pass is unchanged.
+- **A failed fetch** still saves nothing (session one's divergence kept). It
+  lands on `/watch?yt=<id>`: the failure in plain words with every caption
+  track named, the paste box, and "Try YouTube again". The failure text is
+  held in memory only.
+- **Publishing** is by pull request: the session opens it, Dan taps Merge,
+  the merge deploys.
+
+## Close-out, session two (24 Sep 2026)
+
+- **Live, checked by Dan:** the failure names the test video's one track,
+  "Français (générés automatiquement)"; "Try YouTube again" got the same 429,
+  hours after session one's; a whole-page Ctrl+A copy of the video's page was
+  read right ("0:00 Bonjour les amis et bienvenue dans un" …); lines came in
+  tinted; a tapped line named "question by tone alone"; Ear first and "What
+  was that?" worked, and the pattern turned shaky on the patterns page.
+- The brief's "select all the text in that panel" does not work on YouTube:
+  Ctrl+A takes the whole page. The on-screen wording now says so.
+- Deploy run 3 died downloading Fly's tool (a dropped connection); one re-run
+  was green.
+- `claude/eloquent-hopper-727dun` is now fully in `main`; deleting it was
+  refused by the session's safety check. It is harmless left in place.
+- Report: `docs/reports/french-ear-two-report.md`.
