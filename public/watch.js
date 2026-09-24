@@ -11,6 +11,8 @@
 // Lines pasted from YouTube's transcript panel show the first three as read
 // ("Here's how I read your paste"); pasted with no timings, they are a plain
 // list that does not follow the clock, and Ear first is not offered.
+// Any YouTube video takes a new paste ("Paste the transcript again"), which
+// replaces its lines.
 // /watch?yt=<YouTube id> is a video YouTube wouldn't give the captions for:
 // nothing saved yet, the player, why, a box for the transcript, and "Try
 // YouTube again".
@@ -436,6 +438,29 @@
         : 'No timings in this transcript — lines won’t follow the video.');
   }
 
+  // "Paste the transcript again": the new paste replaces the video's lines,
+  // and the page opens again on them.
+  function drawRepaste() {
+    $('repaste').hidden = false;
+    const form = $('repaste-form');
+    const go = $('repaste-go');
+    const msg = $('repaste-msg');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+      go.disabled = true;
+      go.textContent = 'Reading your transcript…';
+      try {
+        const v = await api('POST', '/api/videos', { link: video.youtube_id, transcript: $('repaste-text').value });
+        location.replace('/watch?id=' + v.id);
+      } catch (err) {
+        msg.textContent = err.message;
+        go.disabled = false;
+        go.textContent = 'Use this transcript';
+      }
+    });
+  }
+
   // A video YouTube wouldn't give the captions for. Nothing is saved until
   // lines exist: the transcript pasted here, or YouTube answering this time.
   async function loadNoLines() {
@@ -532,6 +557,7 @@
     drawStatus();
     drawEpisode();
     if (pasted) drawReadback();
+    drawRepaste();
     document.body.dataset.mode = '';
     if (timed) setMode(mode);
     else {

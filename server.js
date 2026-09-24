@@ -16,6 +16,7 @@ const youtube = require('./lib/youtube');
 const spoken = require('./lib/spoken');
 const tally = require('./lib/tally');
 const { parseTranscript } = require('./lib/transcript');
+const { joinFragments } = require('./lib/sentences');
 const { PATTERNS } = require('./lib/patterns');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
@@ -119,30 +120,43 @@ async function fetchAndSave(res, youtubeId, startS) {
     throw e;
   }
   const title = got.title || (await youtube.oembedTitle(youtubeId)) || `YouTube video ${youtubeId}`;
-  const id = db.addVideo({ ...got, title });
+  const id = db.addVideo({ ...got, title, lines: joinFragments(got.lines) });
   failures.delete(youtubeId);
   console.log(`video ${id}: "${title}" (${got.lines.length} lines, track ${got.caption_track}; tracks: ${got.tracks.join(', ')})`);
   spoken.workVideo(id);
   return sendJson(res, 201, { ...videoOut(id), start_s: startS, tracks: got.tracks });
 }
 
-// { link, transcript? } -> the video. A video already added answers the one
-// saved. With a transcript pasted in, the caption fetch is skipped: the paste
-// is the video's lines, and only the title and length come from YouTube (the
-// link stands in for the title when YouTube gives nothing). Without one, the
-// captions are fetched. Either way the video is answered at once while the
-// "as said" pass runs in the background.
+// A pasted transcript -> { lines, timed }: read, then joined into sentences.
+function pastedLines(paste) {
+  const { lines, timed } = parseTranscript(paste);
+  if (!lines.length) throw new db.AppError(400, "I couldn't find any lines in that paste. Copy the text in YouTube's transcript panel and paste it again.");
+  return { lines: joinFragments(lines), timed };
+}
+
+// { link, transcript? } -> the video. With a transcript pasted in, the caption
+// fetch is skipped: the paste is the video's lines, and only the title and
+// length come from YouTube (the link stands in for the title when YouTube
+// gives nothing). Without one, the captions are fetched. A video already
+// added answers the one saved; with a transcript, the paste replaces its
+// lines. Either way the video is answered at once while the "as said" pass
+// runs in the background.
 route('POST', /^\/api\/videos$/, async (req, res) => {
   const body = await readJson(req);
   const link = youtube.parseLink(body.link);
   if (!link) throw new db.AppError(400, "That doesn't look like a YouTube link. Copy the link from the video's Share button and paste it here.");
   const had = db.findVideoByYoutubeId(link.id);
-  if (had) return sendJson(res, 200, { ...videoOut(had.id), start_s: link.start_s, existing: true });
   const paste = typeof body.transcript === 'string' ? body.transcript.trim() : '';
+  if (had && !paste) return sendJson(res, 200, { ...videoOut(had.id), start_s: link.start_s, existing: true });
   if (!paste) return fetchAndSave(res, link.id, link.start_s);
 
-  const { lines, timed } = parseTranscript(paste);
-  if (!lines.length) throw new db.AppError(400, "I couldn't find any lines in that paste. Copy the text in YouTube's transcript panel and paste it again.");
+  const { lines, timed } = pastedLines(paste);
+  if (had) {
+    const r = db.replaceLines(had.id, lines, { caption_track: 'pasted' });
+    console.log(`video ${had.id}: lines replaced by a new paste (${r.lines} lines, ${timed ? 'with' : 'without'} timings; ${r.moved} kept moved, ${r.earlier} kept from the earlier paste)`);
+    spoken.workVideo(had.id);
+    return sendJson(res, 200, { ...videoOut(had.id), start_s: link.start_s, existing: true, replaced: true });
+  }
   const details = await youtube.fetchDetails(link.id);
   const title = details.title || `https://www.youtube.com/watch?v=${link.id}`;
   const id = db.addVideo({ youtube_id: link.id, title, duration_s: details.duration_s, caption_track: 'pasted', lines });
@@ -260,6 +274,15 @@ async function handle(req, res) {
 
 db.open(DATA_DIR);
 console.log(`database: ${path.join(DATA_DIR, 'french-ear.db')}`);
+// Videos saved before lines were joined into sentences are joined now; their
+// lines go back to pending and the "as said" pass runs on the sentences.
+for (const id of db.videosNotJoined()) {
+  const old = db.getVideo(id).lines;
+  const joined = joinFragments(old);
+  if (joined.length === old.length && joined.every((l, i) => l.written === old[i].written)) { db.markJoined(id); continue; }
+  const r = db.replaceLines(id, joined);
+  console.log(`video ${id}: ${old.length} caption lines joined into ${r.lines} sentences (${r.moved} kept moved, ${r.earlier} kept from the earlier lines)`);
+}
 // Lines left pending by a restart are worked again.
 for (const id of db.videosWithPending()) spoken.workVideo(id);
 
