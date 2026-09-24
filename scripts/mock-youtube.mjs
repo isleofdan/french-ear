@@ -8,6 +8,7 @@
 //   noCaption01  no captions at all
 //   botBlocked1  the watch page asks to prove it is not a bot; no player
 //   emptyText01  a French track whose text answers empty
+//   emptyText02  three tracks (English auto, French auto, French); the text answers 429
 //   json3Only01  a French track whose text answers only as json3
 import http from 'node:http';
 import { VIDEO_LINES } from './fixtures.mjs';
@@ -27,6 +28,7 @@ const VIDEOS = {
   enOnly00001: { title: 'An English talk (mock)', tracks: (id) => [track(id, 'en', null, 'English')] },
   noCaption01: { title: 'No captions (mock)', tracks: () => [] },
   emptyText01: { title: 'Empty track (mock)', tracks: (id) => [track(id, 'fr', null, 'French')] },
+  emptyText02: { title: 'Refused track (mock)', tracks: (id) => [track(id, 'en', 'asr', 'English (auto-generated)'), track(id, 'fr', 'asr', 'French (auto-generated)'), track(id, 'fr', null, 'French')] },
   json3Only01: { title: 'json3 only (mock)', tracks: (id) => [track(id, 'fr', null, 'French')] },
 };
 
@@ -67,6 +69,7 @@ http.createServer((req, res) => {
     const auto = u.searchParams.get('kind') === 'asr';
     const fmt = u.searchParams.get('fmt');
     if (id === 'emptyText01') return send(200, 'text/xml', '');
+    if (id === 'emptyText02') return send(429, 'text/html', '<html><head><meta http-equiv="content-type" content="text/html; charset=utf-8"/></head><body>Too many requests</body></html>');
     if (id === 'json3Only01' && fmt !== 'json3') return send(200, 'text/xml', '');
     if (fmt === 'json3') {
       const events = lines(auto).map((l) => ({ tStartMs: Math.round(l.start * 1000), dDurationMs: Math.round(l.dur * 1000), segs: [{ utf8: l.w }] }));

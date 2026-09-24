@@ -58,6 +58,12 @@ test('a refusal from YouTube is reported as what came back, not as "no captions"
   await assert.rejects(youtube.fetchVideo('emptyText01'), (e) => e.kind === 'fetch' && /gave no text/.test(e.message));
 });
 
+test('"gave no text" names every caption track the video offered, auto-generated ones marked', async () => {
+  await assert.rejects(youtube.fetchVideo('emptyText02'), (e) => e.kind === 'fetch' && /gave no text/.test(e.message)
+    && /Captions the video offers: English \(auto-generated\), French \(auto-generated\), French\./.test(e.message)
+    && e.detail.tracks.length === 3);
+});
+
 test('a track that answers only as json3 is still read', async () => {
   const v = await youtube.fetchVideo('json3Only01');
   assert.equal(v.lines.length, 16);
