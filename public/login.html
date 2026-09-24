@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>French ear — sign in</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body class="center">
+<form class="panel login" method="post" action="/login">
+  <h1 class="title">French ear</h1>
+  <p class="muted">Hear the French that the page never shows.</p>
+  <div class="msg" id="msg">{{MESSAGE}}</div>
+  <label for="passphrase">Passphrase</label>
+  <input id="passphrase" name="passphrase" type="password" autocomplete="current-password" autofocus required>
+  <input type="hidden" name="next" value="{{NEXT}}">
+  <button class="primary" type="submit">Come in</button>
+</form>
+</body>
+</html>

@@ -1,0 +1,226 @@
+'use strict';
+// French ear: one plain Node server.
+//   /login (GET, POST), /logout, /health, the manifest, the service worker
+//   and the icons                          — open
+//   everything else                        — behind the passphrase cookie
+// Fail closed: with APP_PASSWORD or COOKIE_SECRET unset, only the login page
+// serves, and it says the server is not configured.
+
+const http = require('node:http');
+const path = require('node:path');
+const fs = require('node:fs');
+
+const auth = require('./lib/auth');
+const db = require('./lib/db');
+const youtube = require('./lib/youtube');
+const spoken = require('./lib/spoken');
+const tally = require('./lib/tally');
+const { PATTERNS } = require('./lib/patterns');
+const ratelimit = require('./lib/ratelimit');
+const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
+
+const PORT = Number(process.env.PORT) || 8080;
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'var');
+const PUBLIC = path.join(__dirname, 'public');
+const { APP_PASSWORD, COOKIE_SECRET } = process.env;
+const SECURE_COOKIE = process.env.COOKIE_INSECURE !== '1';
+const CONFIGURED = Boolean(APP_PASSWORD && COOKIE_SECRET);
+
+if (!CONFIGURED) {
+  const missing = ['APP_PASSWORD', 'COOKIE_SECRET'].filter((k) => !process.env[k]);
+  console.error(`not configured: ${missing.join(', ')} unset. Only the login page will serve.`);
+}
+
+const LOGIN_TEMPLATE = fs.readFileSync(path.join(PUBLIC, 'login.html'), 'utf8');
+const NOT_CONFIGURED = 'This server is not configured: APP_PASSWORD or COOKIE_SECRET is unset. Set both and restart.';
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Only a path on this site: never another host.
+function safeNext(next) {
+  return typeof next === 'string' && /^\/(?!\/)/.test(next) && !next.startsWith('/login') ? next : '/';
+}
+
+function loginPage(res, status, message = '', next = '/') {
+  sendHtml(res, status, LOGIN_TEMPLATE.replace('{{MESSAGE}}', escapeHtml(message)).replace('{{NEXT}}', escapeHtml(safeNext(next))));
+}
+
+function wantsJson(req) {
+  return (req.headers.accept || '').includes('application/json')
+    || (req.headers['content-type'] || '').includes('application/json');
+}
+
+async function handleLogin(req, res) {
+  if (!CONFIGURED) {
+    return wantsJson(req) ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
+  }
+  const wait = ratelimit.lockedFor(req);
+  if (wait > 0) {
+    const msg = `Too many wrong passphrases. Wait ${Math.ceil(wait / 60)} minute(s) and try again.`;
+    return wantsJson(req) ? sendJson(res, 429, { error: msg, retry_after_s: wait }, { 'retry-after': String(wait) })
+      : loginPage(res, 429, msg);
+  }
+  let body;
+  try { body = await readJson(req); } catch (e) { return sendJson(res, e.status || 400, { error: e.message }); }
+  if (!auth.passwordOk(body.passphrase, APP_PASSWORD)) {
+    ratelimit.recordFailure(req);
+    const msg = 'Wrong passphrase. Try again.';
+    return wantsJson(req) ? sendJson(res, 401, { error: msg }) : loginPage(res, 401, msg, body.next);
+  }
+  ratelimit.clear(req);
+  const headers = { 'set-cookie': auth.issueCookie(COOKIE_SECRET, { secure: SECURE_COOKIE }) };
+  return wantsJson(req) ? sendJson(res, 200, { ok: true }, headers) : redirect(res, safeNext(body.next), headers);
+}
+
+// --- routes behind the cookie -----------------------------------------------
+
+const api = [];
+function route(method, pattern, run) { api.push({ method, pattern, run }); }
+
+function videoOut(id) {
+  const v = db.getVideo(id);
+  return { ...v, working: spoken.isRunning(v.id) };
+}
+
+route('GET', /^\/api\/home$/, (req, res) => {
+  const { totals } = tally.states(db.allEvents());
+  return sendJson(res, 200, { totals, videos: db.listVideos({ limit: 5 }) });
+});
+
+route('GET', /^\/api\/patterns$/, (req, res) => sendJson(res, 200, tally.states(db.allEvents())));
+
+// { link } -> the video. A video already added answers the one saved; a new
+// one is fetched (title and French captions), saved with its written lines,
+// and answered at once while the "as said" pass runs in the background.
+route('POST', /^\/api\/videos$/, async (req, res) => {
+  const body = await readJson(req);
+  const link = youtube.parseLink(body.link);
+  if (!link) throw new db.AppError(400, "That doesn't look like a YouTube link. Copy the link from the video's Share button and paste it here.");
+  const had = db.findVideoByYoutubeId(link.id);
+  if (had) return sendJson(res, 200, { ...videoOut(had.id), start_s: link.start_s, existing: true });
+  let got;
+  try {
+    got = await youtube.fetchVideo(link.id);
+  } catch (e) {
+    if (e instanceof youtube.CaptionError) {
+      console.error(`captions for ${link.id}: ${e.message} ${JSON.stringify(e.detail)}`);
+      return sendJson(res, e.status, { error: e.message, kind: e.kind, detail: e.detail });
+    }
+    throw e;
+  }
+  const title = got.title || (await youtube.oembedTitle(link.id)) || `YouTube video ${link.id}`;
+  const id = db.addVideo({ ...got, title });
+  console.log(`video ${id}: "${title}" (${got.lines.length} lines, track ${got.caption_track}; tracks: ${got.tracks.join(', ')})`);
+  spoken.workVideo(id);
+  return sendJson(res, 201, { ...videoOut(id), start_s: link.start_s, tracks: got.tracks });
+});
+
+route('GET', /^\/api\/videos$/, (req, res) => sendJson(res, 200, { items: db.listVideos({ limit: 50 }) }));
+
+route('GET', /^\/api\/videos\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200, videoOut(id)));
+
+// The lines not yet worked out go round again.
+route('POST', /^\/api\/videos\/(?<id>\d+)\/retry$/, (req, res, { id }) => {
+  db.getVideo(id);
+  const n = spoken.retryVideo(Number(id));
+  return sendJson(res, 202, { ...videoOut(id), retrying: n });
+});
+
+// { text } -> one typed or pasted French sentence, worked out at once, as a
+// video with no player. Nothing is recorded to the tally from this path.
+route('POST', /^\/api\/typed$/, async (req, res) => {
+  const body = await readJson(req);
+  const text = typeof body.text === 'string' ? body.text.replace(/\s+/g, ' ').trim() : '';
+  if (!text) throw new db.AppError(400, 'Type or paste a French sentence first.');
+  if (text.length > 600) throw new db.AppError(400, 'That is longer than one sentence. Paste one line at a time (600 characters at most).');
+  const title = text.length > 80 ? `${text.slice(0, 77)}…` : text;
+  const id = db.addVideo({ youtube_id: null, title, lines: [{ written: text }] });
+  await spoken.workVideo(id);
+  return sendJson(res, 201, videoOut(id));
+});
+
+route('POST', /^\/api\/lines\/(?<id>\d+)\/keep$/, (req, res, { id }) => sendJson(res, 200, db.keepLine(id)));
+route('DELETE', /^\/api\/lines\/(?<id>\d+)\/keep$/, (req, res, { id }) => sendJson(res, 200, db.unkeepLine(id)));
+
+route('GET', /^\/api\/kept$/, (req, res) => sendJson(res, 200, { items: db.listKept() }));
+
+// { kind, line_ids } -> one event per pattern in each line. kind is looked,
+// got_past_me or watched_clean; keep goes through the keep route.
+route('POST', /^\/api\/events$/, async (req, res) => {
+  const body = await readJson(req);
+  if (!['looked', 'got_past_me', 'watched_clean'].includes(body.kind)) throw new db.AppError(400, 'kind must be looked, got_past_me or watched_clean.');
+  const ids = Array.isArray(body.line_ids) ? body.line_ids.map(Number).filter(Number.isInteger).slice(0, 50) : [];
+  let recorded = 0;
+  for (const lineId of ids) {
+    const line = db.getLine(lineId);
+    for (const p of line.patterns) { db.addEventRow(body.kind, p, line.id); recorded++; }
+  }
+  return sendJson(res, 200, { recorded });
+});
+
+route('GET', /^\/api\/pattern-list$/, (req, res) => sendJson(res, 200, { items: PATTERNS }));
+
+// --- serving ----------------------------------------------------------------
+
+const OPEN_FILES = new Set(['/manifest.webmanifest', '/sw.js', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon.svg', '/app.css']);
+const PAGES = { '/': '/index.html', '/watch': '/watch.html', '/kept': '/kept.html', '/patterns': '/patterns.html' };
+
+async function handle(req, res) {
+  const url = new URL(req.url, 'http://x');
+  const p = url.pathname;
+
+  if (p === '/health') return sendJson(res, 200, { ok: true, configured: CONFIGURED });
+  if (p === '/login' && req.method === 'GET') return loginPage(res, CONFIGURED ? 200 : 503, CONFIGURED ? '' : NOT_CONFIGURED, url.searchParams.get('next'));
+  if (p === '/login' && req.method === 'POST') return handleLogin(req, res);
+  if (p === '/logout') return redirect(res, '/login', { 'set-cookie': auth.clearCookie({ secure: SECURE_COOKIE }) });
+  if (req.method === 'GET' && OPEN_FILES.has(p) && serveStatic(res, PUBLIC, p)) return;
+
+  const isApi = p.startsWith('/api/');
+  if (!CONFIGURED) return isApi ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
+  if (!auth.cookieOk(req, COOKIE_SECRET)) {
+    return isApi ? sendJson(res, 401, { error: 'Sign in first.' }) : redirect(res, `/login?next=${encodeURIComponent(p + url.search)}`);
+  }
+
+  for (const r of api) {
+    const m = r.method === req.method && r.pattern.exec(p);
+    if (m) {
+      try {
+        return await r.run(req, res, m.groups || {}, url);
+      } catch (e) {
+        const status = e.status || 500;
+        if (status === 500) console.error(e);
+        return sendJson(res, status, { error: status === 500 ? 'Something went wrong on the server.' : e.message });
+      }
+    }
+  }
+  if (isApi) return sendJson(res, 404, { error: `No route ${req.method} ${p}.` });
+
+  // Android's Share lands here (the manifest's share_target): the shared
+  // text goes into the home page's link box.
+  if (p === '/share') {
+    const shared = [url.searchParams.get('url'), url.searchParams.get('text'), url.searchParams.get('title')].filter(Boolean).join(' ');
+    return redirect(res, `/?shared=${encodeURIComponent(shared)}`);
+  }
+  if (PAGES[p]) return serveStatic(res, PUBLIC, PAGES[p]) || sendJson(res, 404, { error: 'page missing' });
+  if (/\.html$/.test(p) && PAGES[p.replace(/\.html$/, '')]) return redirect(res, p.replace(/\.html$/, '') + url.search);
+  if (serveStatic(res, PUBLIC, p)) return;
+  return sendJson(res, 404, { error: `Nothing at ${p}.` });
+}
+
+db.open(DATA_DIR);
+console.log(`database: ${path.join(DATA_DIR, 'french-ear.db')}`);
+// Lines left pending by a restart are worked again.
+for (const id of db.videosWithPending()) spoken.workVideo(id);
+
+const server = http.createServer((req, res) => {
+  handle(req, res).catch((e) => {
+    console.error(e);
+    if (!res.headersSent) sendJson(res, 500, { error: 'Server error.' });
+  });
+});
+
+server.listen(PORT, () => console.log(`french-ear listening on ${PORT}${CONFIGURED ? '' : ' (NOT CONFIGURED)'}; models ${spoken.MODEL}, then ${spoken.FALLBACK_MODEL}`));
+
+module.exports = { server };

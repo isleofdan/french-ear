@@ -1,0 +1,182 @@
+[
+  {
+    "id": "ne-dropped",
+    "name": "ne is dropped",
+    "explain": "The ne of the negative disappears; pas (or jamais, rien, plus) alone carries it.",
+    "examples": [
+      { "written": "je ne sais pas", "said": "je sais pas" },
+      { "written": "il ne vient jamais", "said": "il vient jamais" }
+    ]
+  },
+  {
+    "id": "je-ch",
+    "name": "je sais → chais, je suis → chuis",
+    "explain": "The e of je drops and the j runs into the s, sounding like ch.",
+    "examples": [
+      { "written": "je sais pas", "said": "chais pas" },
+      { "written": "je suis là", "said": "chuis là" }
+    ]
+  },
+  {
+    "id": "e-dropped",
+    "name": "an e dropped inside",
+    "explain": "An unstressed e vanishes and the consonants around it collide.",
+    "examples": [
+      { "written": "je te le dis", "said": "j'te l'dis" },
+      { "written": "ce que", "said": "c'que" },
+      { "written": "petit", "said": "p'tit" },
+      { "written": "je crois", "said": "j'crois" },
+      { "written": "demain", "said": "d'main" }
+    ]
+  },
+  {
+    "id": "tu-t",
+    "name": "tu → t' before a vowel",
+    "explain": "tu clips to t' when the next word starts with a vowel.",
+    "examples": [
+      { "written": "tu as vu", "said": "t'as vu" },
+      { "written": "tu es là", "said": "t'es là" }
+    ]
+  },
+  {
+    "id": "il-y-a",
+    "name": "il y a → y a",
+    "explain": "The il disappears; \"there is / there are\" is just y a.",
+    "examples": [
+      { "written": "il y a un problème", "said": "y a un problème" },
+      { "written": "il n'y a pas", "said": "y a pas" }
+    ]
+  },
+  {
+    "id": "il-dropped",
+    "name": "il dropped before faut, paraît, etc.",
+    "explain": "Impersonal il disappears in front of faut, paraît, vaut mieux, suffit.",
+    "examples": [
+      { "written": "il faut partir", "said": "faut partir" },
+      { "written": "il paraît que", "said": "paraît que" }
+    ]
+  },
+  {
+    "id": "il-i",
+    "name": "il / ils → i",
+    "explain": "The l of il and ils is not heard before a consonant; you hear i.",
+    "examples": [
+      { "written": "ils sont partis", "said": "i sont partis" },
+      { "written": "il dit que", "said": "i dit que" }
+    ]
+  },
+  {
+    "id": "on-for-nous",
+    "name": "on instead of nous",
+    "explain": "Everyday speech says on where the page says nous, with a singular verb.",
+    "examples": [
+      { "written": "nous ne savons pas", "said": "on sait pas" },
+      { "written": "nous allons", "said": "on va" }
+    ]
+  },
+  {
+    "id": "question-tone",
+    "name": "question by tone alone",
+    "explain": "No est-ce que, no inversion: the sentence is a question because the voice rises.",
+    "examples": [
+      { "written": "est-ce que tu viens ?", "said": "tu viens ?" },
+      { "written": "où vas-tu ?", "said": "tu vas où ?" }
+    ]
+  },
+  {
+    "id": "qu-est-ce-que",
+    "name": "qu'est-ce que → kess",
+    "explain": "qu'est-ce que is said as one short kess; qu'est-ce qu'il as kesk-il.",
+    "examples": [
+      { "written": "qu'est-ce que tu fais ?", "said": "kess tu fais ?" }
+    ]
+  },
+  {
+    "id": "run-together",
+    "name": "words run together",
+    "explain": "A final consonant or vowel links to the next word (liaison, enchaînement), so word boundaries vanish.",
+    "examples": [
+      { "written": "elle est arrivée", "said": "ell-è-tarrivée" },
+      { "written": "les amis", "said": "lé-zamis" }
+    ]
+  },
+  {
+    "id": "ca-for-cela",
+    "name": "ça for cela",
+    "explain": "cela is ça in speech.",
+    "examples": [
+      { "written": "cela ne va pas", "said": "ça va pas" }
+    ]
+  },
+  {
+    "id": "fillers",
+    "name": "fillers: bah, ben, quoi, genre, hein, euh, ouais",
+    "explain": "Words the page never prints that fill and shape spoken sentences; ouais for oui.",
+    "examples": [
+      { "written": "oui, bien sûr", "said": "ouais, ben ouais" }
+    ]
+  },
+  {
+    "id": "parce-que",
+    "name": "parce que → pasque, puis → pis",
+    "explain": "Common little words shrink.",
+    "examples": [
+      { "written": "parce que", "said": "pasque" },
+      { "written": "et puis", "said": "et pis" },
+      { "written": "enfin", "said": "'fin" },
+      { "written": "peut-être", "said": "p't-êt'" }
+    ]
+  },
+  {
+    "id": "celui-cette",
+    "name": "celui-là → çui-là, cette → c'te",
+    "explain": "Demonstratives shrink.",
+    "examples": [
+      { "written": "celui-là", "said": "çui-là" },
+      { "written": "cette voiture", "said": "c'te voiture" }
+    ]
+  },
+  {
+    "id": "elle-e",
+    "name": "elle → è before a consonant",
+    "explain": "The ll of elle is not heard before a consonant.",
+    "examples": [
+      { "written": "elle dit", "said": "è dit" },
+      { "written": "elles sont", "said": "è sont" }
+    ]
+  },
+  {
+    "id": "subject-doubled",
+    "name": "the subject said twice",
+    "explain": "Speech puts moi je, lui il, ça c'est where the page has one subject.",
+    "examples": [
+      { "written": "je pense", "said": "moi je pense" },
+      { "written": "c'est bien", "said": "ça c'est bien" }
+    ]
+  },
+  {
+    "id": "t-inquiete",
+    "name": "t'inquiète, tu vas pas, etc.",
+    "explain": "Fixed everyday phrases said in their reduced shape.",
+    "examples": [
+      { "written": "ne t'inquiète pas", "said": "t'inquiète" },
+      { "written": "tu ne vas pas", "said": "tu vas pas" }
+    ]
+  },
+  {
+    "id": "vowel-swallowed",
+    "name": "a vowel swallowed at speed",
+    "explain": "il est → y est; tu es → t'es; je vais → j'vais; voilà → v'là.",
+    "examples": [
+      { "written": "voilà le problème", "said": "v'là le problème" }
+    ]
+  },
+  {
+    "id": "oui-non",
+    "name": "oui and non reshaped",
+    "explain": "ouais, mouais, nan, bah oui, mais non.",
+    "examples": [
+      { "written": "non", "said": "nan" }
+    ]
+  }
+]

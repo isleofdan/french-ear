@@ -1,0 +1,41 @@
+# French ear on Fly.io: one small machine in Tokyo, one volume.
+#
+# Deploys go through .github/workflows/deploy.yml (on every push to main),
+# never from a session.
+#
+# READ BEFORE TOUCHING [mounts]:
+#   Never change the mount destination path. Changing it silently discards
+#   the old volume and creates a fresh empty one. The database is
+#   /data/french-ear.db. Confirm a copy exists before any edit to that section.
+
+app = "french-ear-dan"
+primary_region = "nrt"   # Tokyo
+
+[build]
+
+[env]
+  PORT = "8080"
+  DATA_DIR = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Always on: a sleeping machine would cost a cold start on every look.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[mounts]
+  source = "ear_data"
+  destination = "/data"   # do not change; see the note at the top
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -1,0 +1,20 @@
+{
+  "name": "french-ear",
+  "version": "0.1.0",
+  "private": true,
+  "description": "French ear: spoken French against written French, from the YouTube videos one learner watches.",
+  "main": "server.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "COOKIE_INSECURE=1 node server.js",
+    "test": "node --test test/",
+    "screenshots": "node scripts/screenshots.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

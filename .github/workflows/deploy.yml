@@ -1,0 +1,114 @@
+# Deploys French ear to Fly. Runs on a push to main, or by hand from the
+# Actions tab. Creates the app and its volume the first time, sets each
+# secret only if it is not already set, then deploys and checks the site.
+#
+# Repository secrets it needs: FLY_API_TOKEN (a Fly token for Dan's personal
+# org that can create apps), APP_PASSWORD, OPENROUTER_API_KEY.
+# COOKIE_SECRET is made here, once, and kept on Fly.
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-french-ear
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      APP: french-ear-dan
+      REGION: nrt
+      VOLUME: ear_data
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Run the checks
+        run: |
+          npm ci
+          npm test
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Refuse to run without the secrets
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          missing=""
+          [ -z "$FLY_API_TOKEN" ] && missing="$missing FLY_API_TOKEN"
+          [ -z "$APP_PASSWORD" ] && missing="$missing APP_PASSWORD"
+          [ -z "$OPENROUTER_API_KEY" ] && missing="$missing OPENROUTER_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing. Add them under Settings > Secrets and variables > Actions, then re-run. Nothing deployed."
+            exit 1
+          fi
+          echo "All required repository secrets are present."
+
+      - name: Create the app if it does not exist
+        run: |
+          if flyctl status --app "$APP" >/dev/null 2>&1; then
+            echo "App $APP exists."
+          else
+            echo "App $APP not found; creating it in org personal."
+            flyctl apps create "$APP" --org personal
+          fi
+
+      - name: Create the volume if there is none
+        run: |
+          if flyctl volumes list --app "$APP" | grep -q "$VOLUME"; then
+            echo "Volume $VOLUME exists."
+          else
+            echo "No volume $VOLUME; creating 1 GB in $REGION."
+            flyctl volumes create "$VOLUME" --region "$REGION" --size 1 --app "$APP" --yes
+          fi
+
+      - name: Set the secrets that are not set yet
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          existing=$(flyctl secrets list --app "$APP" 2>/dev/null | awk 'NR>1 {print $1}')
+          has() { echo "$existing" | grep -qx "$1"; }
+          set_if_missing() {
+            name="$1"; value="$2"
+            if has "$name"; then echo "$name already set; leaving it."; return; fi
+            if [ -z "$value" ]; then echo "$name has no value to set; skipping."; return; fi
+            flyctl secrets set --app "$APP" --stage "$name=$value" >/dev/null
+            echo "$name staged."
+          }
+          set_if_missing APP_PASSWORD "$APP_PASSWORD"
+          set_if_missing OPENROUTER_API_KEY "$OPENROUTER_API_KEY"
+          set_if_missing COOKIE_SECRET "$(openssl rand -hex 32)"
+
+      - name: Deploy
+        run: flyctl deploy --remote-only --app "$APP"
+
+      - name: Check the live site answers
+        run: |
+          base="https://$APP.fly.dev"
+          sleep 8
+          echo "health:"
+          curl -fsS "$base/health"
+          echo
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$base/api/home")
+          echo "/api/home without a cookie: $code"
+          if [ "$code" != "401" ]; then
+            echo "::error::/api/home answered $code without a cookie; it must answer 401."
+            exit 1
+          fi
+          configured=$(curl -fsS "$base/health" | grep -o '"configured":true' || true)
+          if [ -z "$configured" ]; then
+            echo "::error::The server says it is not configured: APP_PASSWORD or COOKIE_SECRET did not reach it."
+            exit 1
+          fi
+          echo "Live at $base"
