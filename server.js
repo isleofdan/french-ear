@@ -17,9 +17,10 @@ const spoken = require('./lib/spoken');
 const tally = require('./lib/tally');
 const { parseTranscript } = require('./lib/transcript');
 const { joinFragments } = require('./lib/sentences');
+const pictures = require('./lib/pictures');
 const { PATTERNS } = require('./lib/patterns');
 const ratelimit = require('./lib/ratelimit');
-const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
+const { sendJson, sendHtml, redirect, readJson, readForm, serveStatic } = require('./lib/http');
 
 const PORT = Number(process.env.PORT) || 8080;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'var');
@@ -166,6 +167,76 @@ route('POST', /^\/api\/videos$/, async (req, res) => {
   return sendJson(res, 201, { ...videoOut(id), start_s: link.start_s });
 });
 
+// Screenshots shared to French ear from another app (Android's Share), held
+// here until he adds the video's link on the home page and sends them. In
+// memory only, for an hour; a restart forgets them and the home page says so.
+const PICTURE_LIMIT = 40 * 1024 * 1024;
+const HELD_MS = 60 * 60 * 1000;
+const held = new Map(); // token -> { files, at }
+function holdPictures(files) {
+  for (const [k, v] of held) if (Date.now() - v.at > HELD_MS) held.delete(k);
+  while (held.size >= 20) held.delete(held.keys().next().value);
+  const token = require('node:crypto').randomBytes(12).toString('hex');
+  held.set(token, { files, at: Date.now() });
+  return token;
+}
+const heldPictures = (token) => (typeof token === 'string' && held.get(token)) || null;
+const isPicturePart = (f) => f.bytes.length > 0 && (f.field === 'screenshots' || /^image\//i.test(f.type));
+
+// A multipart form: link, and screenshots of the transcript (the field
+// "screenshots", several), and/or the token of screenshots shared in (the
+// field "shared"). The pictures are read into lines (lib/pictures.js), joined
+// into sentences, and saved as the video's lines the same way a pasted
+// transcript is: a new video, or the lines of one already added replaced.
+// Answers the video with `read`: how many lines came from each picture and
+// how many were dropped, for "Here's how I read your screenshots".
+route('POST', /^\/api\/screenshots$/, async (req, res) => {
+  const form = await readForm(req, PICTURE_LIMIT, 'the link and the screenshots');
+  const rawLink = (form.fields.link || '').trim();
+  const shared = heldPictures(form.fields.shared);
+  const files = [...(shared ? shared.files : []), ...form.files.filter(isPicturePart)]
+    .map((f, i) => ({ name: f.fileName || `screenshot ${i + 1}`, bytes: f.bytes }));
+  if (!rawLink) throw new db.AppError(400, "Paste the video's link too.");
+  const link = youtube.parseLink(rawLink);
+  if (!link) throw new db.AppError(400, "That doesn't look like a YouTube link. Copy the link from the video's Share button and paste it here.");
+  if (!files.length) {
+    throw new db.AppError(400, form.fields.shared && !shared
+      ? 'The shared screenshots are no longer here (they are kept for an hour). Add them again.'
+      : 'Add at least one screenshot of the transcript.');
+  }
+
+  const read = await pictures.readPictures(files);
+  const lines = joinFragments(read.lines);
+  for (const p of read.pictures) {
+    console.log(`screenshots: ${p.name}: ${p.read} line(s) read, ${p.fresh} new${Object.keys(p.dropped).length ? `, dropped ${JSON.stringify(p.dropped)}` : ''} (${p.model}${p.usage && p.usage.cost != null ? `, cost $${p.usage.cost}` : ''}${p.usage ? `, ${p.usage.prompt_tokens} in / ${p.usage.completion_tokens} out tokens` : ''})`);
+  }
+  if (shared) held.delete(form.fields.shared);
+  const summary = {
+    lines: read.lines.length,
+    pictures: read.pictures.map((p) => ({ name: p.name, read: p.read, fresh: p.fresh, dropped: Object.values(p.dropped).reduce((a, b) => a + b, 0), transcript: p.transcript })),
+  };
+  const had = db.findVideoByYoutubeId(link.id);
+  if (had) {
+    const r = db.replaceLines(had.id, lines, { caption_track: 'screenshots' });
+    console.log(`video ${had.id}: lines replaced by ${files.length} screenshot(s) (${r.lines} lines; ${r.moved} kept moved, ${r.earlier} kept from the earlier lines)`);
+    spoken.workVideo(had.id);
+    return sendJson(res, 200, { ...videoOut(had.id), start_s: link.start_s, existing: true, replaced: true, read: summary });
+  }
+  const details = await youtube.fetchDetails(link.id);
+  const title = details.title || `https://www.youtube.com/watch?v=${link.id}`;
+  const id = db.addVideo({ youtube_id: link.id, title, duration_s: details.duration_s, caption_track: 'screenshots', lines });
+  failures.delete(link.id);
+  console.log(`video ${id}: "${title}" (${lines.length} lines from ${files.length} screenshot(s))`);
+  spoken.workVideo(id);
+  return sendJson(res, 201, { ...videoOut(id), start_s: link.start_s, read: summary });
+});
+
+// Screenshots shared in and held: how many, so the home page can say so.
+route('GET', /^\/api\/shared\/(?<token>[0-9a-f]{24})$/, (req, res, { token }) => {
+  const h = heldPictures(token);
+  return sendJson(res, 200, { count: h ? h.files.length : 0 });
+});
+
 // A YouTube video by its YouTube id: the saved one, or, when none is saved,
 // why its captions could not be fetched (null after a restart).
 route('GET', /^\/api\/youtube\/(?<yt>[A-Za-z0-9_-]{11})$/, (req, res, { yt }) => {
@@ -261,10 +332,24 @@ async function handle(req, res) {
   if (isApi) return sendJson(res, 404, { error: `No route ${req.method} ${p}.` });
 
   // Android's Share lands here (the manifest's share_target): the shared
-  // text goes into the home page's link box.
+  // text goes into the home page's link box, and shared screenshots are held
+  // for the home page's screenshot control. The manifest shares by POST
+  // (multipart, so pictures can come); a GET is an install from before that.
   if (p === '/share') {
-    const shared = [url.searchParams.get('url'), url.searchParams.get('text'), url.searchParams.get('title')].filter(Boolean).join(' ');
-    return redirect(res, `/?shared=${encodeURIComponent(shared)}`);
+    let fields = Object.fromEntries(url.searchParams), files = [];
+    if (req.method === 'POST') {
+      try { ({ fields, files } = await readForm(req, PICTURE_LIMIT, 'what was shared')); } catch (e) {
+        console.error(`share: ${e.message}`);
+        return redirect(res, `/?share_error=${encodeURIComponent(e.message)}`);
+      }
+    }
+    const text = [fields.url, fields.text, fields.title].filter(Boolean).join(' ');
+    const pics = files.filter(isPicturePart);
+    const q = new URLSearchParams();
+    if (text) q.set('shared', text);
+    if (pics.length) q.set('pictures', holdPictures(pics));
+    console.log(`share: ${text ? 'text' : 'no text'}, ${pics.length} picture(s)`);
+    return redirect(res, `/${q.toString() ? `?${q}` : ''}`);
   }
   if (PAGES[p]) return serveStatic(res, PUBLIC, PAGES[p]) || sendJson(res, 404, { error: 'page missing' });
   if (/\.html$/.test(p) && PAGES[p.replace(/\.html$/, '')]) return redirect(res, p.replace(/\.html$/, '') + url.search);
