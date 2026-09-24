@@ -15,6 +15,7 @@ const db = require('./lib/db');
 const youtube = require('./lib/youtube');
 const spoken = require('./lib/spoken');
 const tally = require('./lib/tally');
+const { parseTranscript } = require('./lib/transcript');
 const { PATTERNS } = require('./lib/patterns');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
@@ -91,30 +92,78 @@ route('GET', /^\/api\/home$/, (req, res) => {
 
 route('GET', /^\/api\/patterns$/, (req, res) => sendJson(res, 200, tally.states(db.allEvents())));
 
-// { link } -> the video. A video already added answers the one saved; a new
-// one is fetched (title and French captions), saved with its written lines,
-// and answered at once while the "as said" pass runs in the background.
+// Caption fetches that failed, by YouTube id: what came back, so the page for
+// a video with no lines can say it. Kept in memory only (a restart forgets
+// them and the page says it in general words); nothing is saved without lines.
+const failures = new Map();
+function noteFailure(youtubeId, e) {
+  failures.delete(youtubeId);
+  failures.set(youtubeId, { error: e.message, kind: e.kind, tracks: e.detail?.tracks || [], at: new Date().toISOString() });
+  while (failures.size > 200) failures.delete(failures.keys().next().value);
+}
+
+// A caption fetch for a video not yet saved. Saves it with its lines and
+// starts the "as said" pass, or answers the failure in plain words. A fetch
+// failure (not "no French captions") sends him to the video's own page,
+// where he can paste the transcript or try YouTube again.
+async function fetchAndSave(res, youtubeId, startS) {
+  let got;
+  try {
+    got = await youtube.fetchVideo(youtubeId);
+  } catch (e) {
+    if (e instanceof youtube.CaptionError) {
+      console.error(`captions for ${youtubeId}: ${e.message} ${JSON.stringify(e.detail)}`);
+      if (e.kind === 'fetch') noteFailure(youtubeId, e);
+      return sendJson(res, e.status, { error: e.message, kind: e.kind, detail: e.detail, youtube_id: youtubeId, page: e.kind === 'fetch' ? `/watch?yt=${youtubeId}` : null });
+    }
+    throw e;
+  }
+  const title = got.title || (await youtube.oembedTitle(youtubeId)) || `YouTube video ${youtubeId}`;
+  const id = db.addVideo({ ...got, title });
+  failures.delete(youtubeId);
+  console.log(`video ${id}: "${title}" (${got.lines.length} lines, track ${got.caption_track}; tracks: ${got.tracks.join(', ')})`);
+  spoken.workVideo(id);
+  return sendJson(res, 201, { ...videoOut(id), start_s: startS, tracks: got.tracks });
+}
+
+// { link, transcript? } -> the video. A video already added answers the one
+// saved. With a transcript pasted in, the caption fetch is skipped: the paste
+// is the video's lines, and only the title and length come from YouTube (the
+// link stands in for the title when YouTube gives nothing). Without one, the
+// captions are fetched. Either way the video is answered at once while the
+// "as said" pass runs in the background.
 route('POST', /^\/api\/videos$/, async (req, res) => {
   const body = await readJson(req);
   const link = youtube.parseLink(body.link);
   if (!link) throw new db.AppError(400, "That doesn't look like a YouTube link. Copy the link from the video's Share button and paste it here.");
   const had = db.findVideoByYoutubeId(link.id);
   if (had) return sendJson(res, 200, { ...videoOut(had.id), start_s: link.start_s, existing: true });
-  let got;
-  try {
-    got = await youtube.fetchVideo(link.id);
-  } catch (e) {
-    if (e instanceof youtube.CaptionError) {
-      console.error(`captions for ${link.id}: ${e.message} ${JSON.stringify(e.detail)}`);
-      return sendJson(res, e.status, { error: e.message, kind: e.kind, detail: e.detail });
-    }
-    throw e;
-  }
-  const title = got.title || (await youtube.oembedTitle(link.id)) || `YouTube video ${link.id}`;
-  const id = db.addVideo({ ...got, title });
-  console.log(`video ${id}: "${title}" (${got.lines.length} lines, track ${got.caption_track}; tracks: ${got.tracks.join(', ')})`);
+  const paste = typeof body.transcript === 'string' ? body.transcript.trim() : '';
+  if (!paste) return fetchAndSave(res, link.id, link.start_s);
+
+  const { lines, timed } = parseTranscript(paste);
+  if (!lines.length) throw new db.AppError(400, "I couldn't find any lines in that paste. Copy the text in YouTube's transcript panel and paste it again.");
+  const details = await youtube.fetchDetails(link.id);
+  const title = details.title || `https://www.youtube.com/watch?v=${link.id}`;
+  const id = db.addVideo({ youtube_id: link.id, title, duration_s: details.duration_s, caption_track: 'pasted', lines });
+  failures.delete(link.id);
+  console.log(`video ${id}: "${title}" (${lines.length} lines pasted, ${timed ? 'with' : 'without'} timings)`);
   spoken.workVideo(id);
-  return sendJson(res, 201, { ...videoOut(id), start_s: link.start_s, tracks: got.tracks });
+  return sendJson(res, 201, { ...videoOut(id), start_s: link.start_s });
+});
+
+// A YouTube video by its YouTube id: the saved one, or, when none is saved,
+// why its captions could not be fetched (null after a restart).
+route('GET', /^\/api\/youtube\/(?<yt>[A-Za-z0-9_-]{11})$/, (req, res, { yt }) => {
+  const had = db.findVideoByYoutubeId(yt);
+  return sendJson(res, 200, { youtube_id: yt, video_id: had ? had.id : null, failure: had ? null : failures.get(yt) || null });
+});
+
+// "Try YouTube again": the caption fetch, once more.
+route('POST', /^\/api\/youtube\/(?<yt>[A-Za-z0-9_-]{11})\/retry$/, async (req, res, { yt }) => {
+  const had = db.findVideoByYoutubeId(yt);
+  if (had) return sendJson(res, 200, { ...videoOut(had.id), existing: true });
+  return fetchAndSave(res, yt, 0);
 });
 
 route('GET', /^\/api\/videos$/, (req, res) => sendJson(res, 200, { items: db.listVideos({ limit: 50 }) }));

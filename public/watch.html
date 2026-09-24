@@ -22,6 +22,24 @@
         <div class="note" id="sub"></div>
       </div>
       <div class="status" id="status" hidden></div>
+      <section class="panel stack nolines" id="nolines" hidden aria-labelledby="nolines-head">
+        <p class="nolines-say" id="nolines-head">YouTube wouldn't give me the captions. On a laptop, open the video, tap <b>...more</b> under it, tap <b>Show transcript</b>, select all the text in that panel, copy, and paste it here.</p>
+        <p class="note" id="nolines-why"></p>
+        <form class="stack" id="paste-form">
+          <label for="paste">Paste the transcript here (from YouTube's Show transcript panel)</label>
+          <textarea id="paste" name="transcript" rows="5" placeholder="0:00&#10;Bonjour à tous…" required></textarea>
+          <div class="msg" id="paste-msg" role="alert"></div>
+          <div class="controls">
+            <button class="primary" type="submit" id="paste-go">Use this transcript</button>
+            <button class="secondary" type="button" id="yt-again">Try YouTube again</button>
+          </div>
+        </form>
+      </section>
+      <section class="panel stack readback" id="readback" hidden aria-labelledby="readback-head">
+        <h2 class="title" id="readback-head" style="font-size:18px">Here's how I read your paste</h2>
+        <ol class="readback-lines" id="readback-lines"></ol>
+        <p class="note" id="readback-note"></p>
+      </section>
       <div class="modes" id="modes" role="group" aria-label="How to watch">
         <button type="button" data-mode="follow" aria-pressed="true">Follow along</button>
         <button type="button" data-mode="ear" aria-pressed="false">Ear first</button>

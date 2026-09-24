@@ -25,3 +25,18 @@ From the brief filed on the `french-ear` card (Personal Shipyard):
 Out of scope this session: the photo-of-the-TV path (session two), practice
 clips (session three), speech recognition, suggesting videos, second users,
 downloading any video or audio.
+
+## Close-out, session one (24 Sep 2026)
+
+- **Live:** https://french-ear-dan.fly.dev, deployed by the workflow on the
+  first push to `main` (run 1 green: checks, app, volume `ear_data`, secrets,
+  deploy, live answer). Dan signed in and saw the home page.
+- **Stopped at live check 2, as the brief says.** From Fly, YouTube listed the
+  test video's French track, then answered HTTP 429 (an HTML "too many
+  requests" page, 1,103 characters) for the track's text, as XML and as json3.
+  Nothing was saved. Checks 3 and 4 (tapping a tinted line, Ear first) were
+  not run live. The fallback is the Personal Shipyard chat's decision.
+- `main` was created by Dan on GitHub: the session's safety check refused the
+  push to `main` even with his word. The repo's default branch is still
+  `claude/eloquent-hopper-727dun` (the first branch pushed to the empty repo).
+- Report: `docs/reports/french-ear-one-report.md`.

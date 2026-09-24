@@ -7,6 +7,7 @@
   const link = document.getElementById('link');
   const linkMsg = document.getElementById('link-msg');
   const linkGo = document.getElementById('link-go');
+  const transcript = document.getElementById('transcript');
 
   // A link shared from another app (Android's Share -> French ear) lands here.
   const shared = new URLSearchParams(location.search).get('shared');
@@ -20,12 +21,16 @@
     e.preventDefault();
     linkMsg.textContent = '';
     linkGo.disabled = true;
-    linkGo.textContent = 'Reading the captions…';
+    const pasted = transcript.value.trim();
+    linkGo.textContent = pasted ? 'Reading your transcript…' : 'Reading the captions…';
     try {
-      const v = await api('POST', '/api/videos', { link: link.value });
+      const v = await api('POST', '/api/videos', pasted ? { link: link.value, transcript: pasted } : { link: link.value });
       const t = v.start_s ? '&t=' + v.start_s : '';
       location.href = '/watch?id=' + v.id + t;
     } catch (err) {
+      // YouTube wouldn't give the captions: the video's own page says so and
+      // takes a pasted transcript.
+      if (err.data && err.data.page) { location.href = err.data.page; return; }
       linkMsg.textContent = err.message;
       linkGo.disabled = false;
       linkGo.textContent = 'Show me the lines';

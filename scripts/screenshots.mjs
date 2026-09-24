@@ -16,6 +16,7 @@ import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { VIDEO_LINES } from './fixtures.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -76,7 +77,9 @@ async function context(view, scheme) {
   await ctx.route(/^https:\/\/fonts\.googleapis\.com\//, (r) => r.fulfill({ contentType: 'text/css', body: '' }));
   const errors = [];
   ctx.on('weberror', (e) => errors.push(e.error().message));
-  ctx.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  // A 502 is the app's own answer when YouTube refuses the captions (the
+  // mock refuses emptyText02 and refusedVid2 on purpose); the browser logs it.
+  ctx.on('console', (m) => { if (m.type() === 'error' && !/status of 502/.test(m.text())) errors.push(m.text()); });
   ctx.on('requestfailed', (r) => { if (!/ERR_ABORTED/.test(r.failure()?.errorText || '')) errors.push('request failed: ' + r.url() + ' ' + (r.failure()?.errorText || '')); });
   return { ctx, errors };
 }
@@ -190,6 +193,65 @@ const shot = (page, name) => page.screenshot({ path: join(out, `${name}.png`), f
   await ctx.close();
 }
 
+// --- the pasted transcript, phone light, with the checks --------------------
+// Video 3 is emptyText02 with a pasted transcript (timings); video 4 a paste
+// with no timings. refusedVid2 stays unsaved: its page is the no-lines one.
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const TIMED_PASTE = 'Transcript\n' + VIDEO_LINES.map((w, i) => `${mmss(i * 3.5 + 0.5)}\n${w}`).join('\n');
+const UNTIMED_PASTE = VIDEO_LINES.slice(1, 6).join('\n');
+{
+  const { ctx, errors } = await context('phone', 'light');
+  const page = await ctx.newPage();
+  await login(page);
+  check('home has the transcript box under the link box', await page.isVisible('#transcript'));
+  check('with the words the brief gives', /Paste the transcript here \(from YouTube's Show transcript panel\)/.test(await page.locator('label[for=transcript]').innerText()));
+
+  // no paste, and YouTube refuses the caption text: the video's page says so
+  await page.fill('#link', 'https://www.youtube.com/watch?v=emptyText02');
+  await page.click('#link-go');
+  await page.waitForURL(/\/watch\?yt=emptyText02/);
+  await page.waitForSelector('#nolines:not([hidden])');
+  const why = await page.locator('#nolines').innerText();
+  check('the failed fetch lands on the video page with the instructions', /YouTube wouldn't give me the captions\. On a laptop, open the video, tap \.\.\.more under it, tap Show transcript/.test(why));
+  check('the failure names the caption tracks', /Captions the video offers: English \(auto-generated\), French \(auto-generated\), French\./.test(why));
+  check('the paste box is right there', await page.isVisible('#paste'));
+  check('and "Try YouTube again"', await page.isVisible('#yt-again'));
+  await page.click('#yt-again');
+  await page.waitForFunction(() => /Tried again just now/.test(document.getElementById('nolines-why').textContent));
+  check('"Try YouTube again" asks once more and says what came back', true);
+
+  // the paste, on that page
+  await page.fill('#paste', TIMED_PASTE);
+  await page.click('#paste-go');
+  await page.waitForURL(/\/watch\?id=3/);
+  await page.waitForSelector('#readback:not([hidden])');
+  const rb = await page.locator('#readback-lines li').allInnerTexts();
+  check('"Here\'s how I read your paste" shows the first three lines', rb.length === 3 && /0:00\s+Bonjour à tous\./.test(rb[0]) && /0:04\s+Je ne sais pas/.test(rb[1]), rb.join(' | '));
+  await page.waitForSelector('#lines .line mark.tint', { timeout: 15000 });
+  check('the pasted lines are worked out and tinted', (await page.locator('#lines .line mark.tint').count()) > 5);
+  check('Ear first is offered for timed lines', await page.isVisible('#modes'));
+  await page.evaluate(() => { window.__t = 4.6; window.__state = 1; });
+  await page.waitForSelector('#line-1.current');
+  check('pasted lines follow the clock', true);
+  await page.evaluate(() => { window.__state = 2; window.scrollTo(0, 0); });
+
+  // no timings in the paste: a plain list
+  await page.goto(`${base}/`);
+  await page.fill('#link', 'https://youtu.be/untimedVid1');
+  await page.fill('#transcript', UNTIMED_PASTE);
+  await page.click('#link-go');
+  await page.waitForURL(/\/watch\?id=4/);
+  await page.waitForSelector('#readback:not([hidden])');
+  check('a paste with no timings says so', /No timings in this transcript — lines won’t follow the video/.test(await page.locator('#readback').innerText()));
+  check('and offers no Ear first', !(await page.isVisible('#modes')) && !(await page.isVisible('#ear')));
+  await page.waitForSelector('#lines .line mark.tint', { timeout: 15000 });
+  await page.evaluate(() => { window.__t = 9; window.__state = 1; });
+  await wait(600);
+  check('nothing follows the clock', (await page.locator('#lines .line.current').count()) === 0);
+  check('no script errors on the paste pass', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
 // --- the rest: every screen, both viewports, both grounds --------------------
 const videoId = 1;
 for (const view of Object.keys(VIEWS)) {
@@ -229,6 +291,23 @@ for (const view of Object.keys(VIEWS)) {
     await page.goto(`${base}/watch?id=2`);
     await page.waitForSelector('#typed mark.tint');
     await shot(page, `typed-${tag}`);
+    // the pasted-transcript screens
+    await page.goto(`${base}/`);
+    await page.fill('#link', 'https://www.youtube.com/watch?v=refusedVid2');
+    await page.fill('#transcript', '');
+    await shot(page, `home-paste-field-${tag}`);
+    await page.click('#link-go');
+    await page.waitForSelector('#nolines:not([hidden])');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await shot(page, `watch-no-captions-${tag}`);
+    for (const [id, name] of [[3, 'watch-pasted-readback'], [4, 'watch-pasted-no-timings']]) {
+      await page.goto(`${base}/watch?id=${id}`);
+      await page.waitForSelector('#readback:not([hidden])');
+      await page.waitForSelector('#lines .line mark.tint');
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await wait(200);
+      await shot(page, `${name}-${tag}`);
+    }
     // contrast of the tint and the orange tint against their text
     await page.goto(`${base}/watch?id=${videoId}`);
     await page.waitForSelector('#lines mark.tint');

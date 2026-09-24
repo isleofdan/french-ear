@@ -8,12 +8,19 @@
 //     without being covered by a "What was that?" records "watched clean".
 // A typed line (a video with no YouTube id) shows as one open line, no player,
 // and records nothing except a keep.
+// Lines pasted from YouTube's transcript panel show the first three as read
+// ("Here's how I read your paste"); pasted with no timings, they are a plain
+// list that does not follow the clock, and Ear first is not offered.
+// /watch?yt=<YouTube id> is a video YouTube wouldn't give the captions for:
+// nothing saved yet, the player, why, a box for the transcript, and "Try
+// YouTube again".
 (function () {
   const { api, el, topBar, clock, saidNode, shakySet } = window.FE;
   document.getElementById('top').replaceWith(topBar(''));
 
   const q = new URLSearchParams(location.search);
   const videoId = Number(q.get('id'));
+  const ytId = /^[A-Za-z0-9_-]{11}$/.test(q.get('yt') || '') ? q.get('yt') : null;
   const MODE_KEY = 'french-ear.mode';
 
   let video = null;
@@ -28,6 +35,7 @@
   let lastUserScroll = 0;
   let filter = null;        // pattern id the list is narrowed to
   let mode = 'follow';
+  let timed = true;         // false: pasted lines with no timings
   try { if (localStorage.getItem(MODE_KEY) === 'ear') mode = 'ear'; } catch (e) { /* no storage: Follow along */ }
 
   // What has been recorded this visit, so nothing is counted twice.
@@ -350,6 +358,7 @@
     let t, state;
     try { t = player.getCurrentTime(); state = player.getPlayerState(); } catch (e) { return; }
     if (typeof t !== 'number') return;
+    if (!timed) { if (stopAt != null && t >= stopAt) stopAt = null; return; }
     setCurrent(lineAt(t));
     if (stopAt != null && t >= stopAt) { stopAt = null; try { player.pauseVideo(); } catch (e) { /* ignore */ } }
     if (mode === 'ear' && state === 1) {
@@ -410,9 +419,79 @@
     );
   }
 
+  // --- pasted lines -----------------------------------------------------------
+
+  function drawReadback() {
+    $('readback').hidden = false;
+    const list = $('readback-lines');
+    list.textContent = '';
+    for (const line of lines.slice(0, 3)) {
+      list.appendChild(el('li', null, [
+        timed ? el('span', { class: 'time', text: clock(line.start_s) }) : null,
+        el('span', { text: line.written }),
+      ]));
+    }
+    $('readback-note').textContent = lines.length + (lines.length === 1 ? ' line' : ' lines') + ' in all. '
+      + (timed ? 'If these three don’t match how the video starts, the paste was read wrong.'
+        : 'No timings in this transcript — lines won’t follow the video.');
+  }
+
+  // A video YouTube wouldn't give the captions for. Nothing is saved until
+  // lines exist: the transcript pasted here, or YouTube answering this time.
+  async function loadNoLines() {
+    let info;
+    try { info = await api('GET', '/api/youtube/' + ytId); } catch (err) { $('load-msg').textContent = err.message; return; }
+    if (info.video_id) { location.replace('/watch?id=' + info.video_id); return; }
+    video = { youtube_id: ytId };
+    timed = false;
+    $('watch').hidden = false;
+    $('title').textContent = 'YouTube video ' + ytId;
+    $('sub').textContent = 'https://www.youtube.com/watch?v=' + ytId;
+    for (const id of ['modes', 'ear', 'lines', 'side']) $(id).hidden = true;
+    $('watch').style.gridTemplateColumns = '1fr';
+    $('nolines').hidden = false;
+    $('nolines-why').textContent = info.failure
+      ? 'What YouTube did: ' + info.failure.error
+      : 'YouTube refused the captions earlier; the details were not kept.';
+
+    const form = $('paste-form');
+    const go = $('paste-go');
+    const again = $('yt-again');
+    const msg = $('paste-msg');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+      go.disabled = true; again.disabled = true;
+      go.textContent = 'Reading your transcript…';
+      try {
+        const v = await api('POST', '/api/videos', { link: ytId, transcript: $('paste').value });
+        location.href = '/watch?id=' + v.id;
+      } catch (err) {
+        msg.textContent = err.message;
+        go.disabled = false; again.disabled = false;
+        go.textContent = 'Use this transcript';
+      }
+    });
+    again.addEventListener('click', async () => {
+      msg.textContent = '';
+      go.disabled = true; again.disabled = true;
+      again.textContent = 'Asking YouTube…';
+      try {
+        const v = await api('POST', '/api/youtube/' + ytId + '/retry');
+        location.href = '/watch?id=' + v.id;
+      } catch (err) {
+        $('nolines-why').textContent = 'Tried again just now. What YouTube did: ' + err.message;
+        go.disabled = false; again.disabled = false;
+        again.textContent = 'Try YouTube again';
+      }
+    });
+    startPlayer(0);
+  }
+
   // --- start -----------------------------------------------------------------
 
   async function load() {
+    if (!videoId && ytId) return loadNoLines();
     if (!videoId) { $('load-msg').textContent = 'No video named in the address.'; return; }
     let pats, list;
     try {
@@ -446,12 +525,23 @@
       return;
     }
 
-    $('sub').textContent = video.counts.total + ' lines · captions: ' + (video.caption_track || 'unknown');
+    const pasted = video.caption_track === 'pasted';
+    timed = lines.some((l) => l.start_s != null);
+    $('sub').textContent = video.counts.total + ' lines · ' + (pasted ? 'from a transcript you pasted' : 'captions: ' + (video.caption_track || 'unknown'));
     drawLines();
     drawStatus();
     drawEpisode();
+    if (pasted) drawReadback();
     document.body.dataset.mode = '';
-    setMode(mode);
+    if (timed) setMode(mode);
+    else {
+      // Nothing to follow the clock with: a plain list, Follow along only,
+      // and the remembered mode left as it was.
+      mode = 'follow';
+      document.body.dataset.mode = 'follow';
+      $('modes').hidden = true;
+      $('ear').hidden = true;
+    }
     for (const b of document.querySelectorAll('#modes button')) b.addEventListener('click', () => setMode(b.dataset.mode));
     $('wwt').addEventListener('click', whatWasThat);
     for (const ev of ['wheel', 'touchmove', 'keydown']) window.addEventListener(ev, () => { lastUserScroll = Date.now(); }, { passive: true });

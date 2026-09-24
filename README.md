@@ -14,6 +14,13 @@ button, "What was that?", shows the last two). The app keeps a tally of which
 patterns keep getting past him, and a list of the lines he chose to keep.
 A second box takes one typed or pasted French sentence and shows the same.
 
+YouTube often refuses to hand caption text to a server (session one met HTTP
+429 from Fly). So a video's lines can also come from its transcript, copied
+from YouTube's own "Show transcript" panel and pasted under the link, or on
+the video's page when the fetch fails. The paste is read with or without
+timestamps (`lib/transcript.js`); without them, the lines are a plain list
+that does not follow the video.
+
 Nothing in the app notifies, reminds or counts days. It answers when opened.
 
 ## Running it
@@ -57,6 +64,7 @@ fails is saved with its reason and shown as "not yet worked out", with a
 
 - `server.js` — one plain Node server: the passphrase gate, the JSON routes under `/api/`, the pages.
 - `lib/youtube.js` — the link parser and the caption fetch (title, tracks, lines).
+- `lib/transcript.js` — a transcript pasted from YouTube's panel, read into lines.
 - `lib/spoken.js` — the "as said" pass: the prompt, the call, the checks on each line.
 - `lib/tally.js` — the one place the solid / shaky / seen / not met yet rule lives.
 - `lib/db.js` — the SQLite tables: videos, lines, kept, events.
