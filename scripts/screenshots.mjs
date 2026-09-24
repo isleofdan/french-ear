@@ -77,7 +77,7 @@ async function context(view, scheme) {
   const errors = [];
   ctx.on('weberror', (e) => errors.push(e.error().message));
   ctx.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  ctx.on('requestfailed', (r) => errors.push('request failed: ' + r.url()));
+  ctx.on('requestfailed', (r) => { if (!/ERR_ABORTED/.test(r.failure()?.errorText || '')) errors.push('request failed: ' + r.url() + ' ' + (r.failure()?.errorText || '')); });
   return { ctx, errors };
 }
 
@@ -169,13 +169,17 @@ const shot = (page, name) => page.screenshot({ path: join(out, `${name}.png`), f
   check('shaky comes first', /^Shaky/i.test(await page.locator('.group-head').first().innerText()));
   await shot(page, 'patterns-phone-light');
 
-  // the typed line
+  // the typed line: shown like any line, and nothing recorded to the tally
+  const eventsBefore = JSON.stringify((await (await page.request.get(`${base}/api/patterns`)).json()).patterns.map((p) => p.counts));
   await page.goto(`${base}/`);
   await page.fill('#typed', "Tu as vu ce qu'il a fait ?");
   await page.click('#typed-go');
   await page.waitForURL(/\/watch\?id=\d+/);
   await page.waitForSelector('#typed mark.tint');
   check('a typed line shows written, as said and the patterns', /tu → t'/.test(await page.locator('#typed').innerText()));
+  await page.locator('#typed .line-main, #typed .why').first().click().catch(() => {});
+  const eventsAfter = JSON.stringify((await (await page.request.get(`${base}/api/patterns`)).json()).patterns.map((p) => p.counts));
+  check('the typed line records nothing to the tally', eventsBefore === eventsAfter);
   await shot(page, 'typed-phone-light');
 
   await page.goto(`${base}/`);
