@@ -91,6 +91,42 @@ test('a paste with no timestamps: lines with no times; the link is the title whe
   assert.equal(v.lines[0].spoken, "Faut qu'j'te parle.");
 });
 
+test('caption fragments are joined into sentences before the "as said" pass', async () => {
+  const transcript = '0:00\nJe ne sais pas ce que\n0:02\ntu veux dire. Il y a\n0:04\nun problème avec la voiture.';
+  const r = await call('POST', '/api/videos', { link: 'https://www.youtube.com/watch?v=unknownVid4', transcript });
+  assert.equal(r.status, 201);
+  const v = await worked(r.body.id);
+  assert.deepEqual(v.lines.map((l) => l.written), ['Je ne sais pas ce que tu veux dire.', 'Il y a un problème avec la voiture.']);
+  assert.equal(v.lines[0].start_s, 0);
+  assert.equal(v.lines[1].end_s, 10);
+  assert.equal(v.lines[0].spoken, "Chais pas c'que tu veux dire.", 'the pass sees the whole sentence');
+});
+
+test('a new paste for a saved video replaces its lines; kept lines stay kept', async () => {
+  const link = 'https://www.youtube.com/watch?v=unknownVid5';
+  const first = await call('POST', '/api/videos', { link, transcript: '0:00\nJe ne sais pas ce que tu veux dire.\n0:04\nIl y a un problème avec la voiturre.' });
+  assert.equal(first.status, 201);
+  const v1 = await worked(first.body.id);
+  for (const l of v1.lines) assert.equal((await call('POST', `/api/lines/${l.id}/keep`)).status, 200);
+  const videosBefore = (await call('GET', '/api/videos')).body.items.length;
+
+  const again = await call('POST', '/api/videos', { link, transcript: '0:00\nJe ne sais pas ce que tu veux dire.\n0:04\nIl y a un problème avec la voiture.' });
+  assert.equal(again.status, 200);
+  assert.equal(again.body.id, first.body.id, 'the same video');
+  assert.equal(again.body.replaced, true);
+  const v2 = await worked(again.body.id);
+  assert.deepEqual(v2.lines.map((l) => l.written), ['Je ne sais pas ce que tu veux dire.', 'Il y a un problème avec la voiture.'], 'the new text, not duplicated');
+  assert.equal(v2.lines[1].spoken, 'Y a un problème avec la voiture.', 'the "as said" pass ran again');
+  assert.equal((await call('GET', '/api/videos')).body.items.length, videosBefore, 'no second video');
+
+  const kept = (await call('GET', '/api/kept')).body.items.filter((k) => k.video.id === first.body.id);
+  const same = kept.find((k) => k.written === 'Je ne sais pas ce que tu veux dire.');
+  assert.equal(same.earlier, false, 'a kept line whose text is still there is kept on the new line');
+  assert.equal(same.id, v2.lines[0].id);
+  const gone = kept.find((k) => k.written === 'Il y a un problème avec la voiturre.');
+  assert.equal(gone.earlier, true, 'a kept line that matches no new line is kept from an earlier paste');
+});
+
 test('a paste with no lines in it is refused in plain words', async () => {
   const r = await call('POST', '/api/videos', { link: 'https://www.youtube.com/watch?v=unknownVid2', transcript: 'Transcript\n\n' });
   assert.equal(r.status, 400);

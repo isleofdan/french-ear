@@ -212,7 +212,8 @@ const UNTIMED_PASTE = VIDEO_LINES.slice(1, 6).join('\n');
   await page.waitForURL(/\/watch\?yt=emptyText02/);
   await page.waitForSelector('#nolines:not([hidden])');
   const why = await page.locator('#nolines').innerText();
-  check('the failed fetch lands on the video page with the instructions', /YouTube wouldn't give me the captions\. On a laptop, open the video, tap \.\.\.more under it, tap Show transcript, then press Ctrl\+A and Ctrl\+C to copy the whole page/.test(why));
+  check('the failed fetch lands on the video page with the phone instructions', /YouTube wouldn't give me the captions\. On a phone or tablet, open the video in the YouTube app, tap the title to expand the description, tap Show transcript, then try to select the transcript text and copy it\. If the app won't let you copy, take a screenshot of the transcript and send it to Dan\./.test(why));
+  check('and not the laptop ones', !/Ctrl\+A/.test(why));
   check('the failure names the caption tracks', /Captions the video offers: English \(auto-generated\), French \(auto-generated\), French\./.test(why));
   check('the paste box is right there', await page.isVisible('#paste'));
   check('and "Try YouTube again"', await page.isVisible('#yt-again'));
@@ -256,7 +257,35 @@ const UNTIMED_PASTE = VIDEO_LINES.slice(1, 6).join('\n');
   await page.waitForURL(/\/watch\?id=5/);
   await page.waitForSelector('#readback:not([hidden])');
   const whole = await page.locator('#readback').innerText();
-  check('a whole-page paste is read as its transcript', /Bonjour les amis et bienvenue dans un/.test(whole) && /17 lines in all/.test(whole), whole.replace(/\s+/g, ' ').slice(0, 160));
+  check('a whole-page paste is read as its transcript, in sentences', /Bonjour les amis et bienvenue dans un nouvel épisode d'iz French\./.test(whole) && /16 lines in all/.test(whole), whole.replace(/\s+/g, ' ').slice(0, 200));
+  await page.waitForFunction(() => document.getElementById('status').hidden, null, { timeout: 15000 });
+  check('the watch page shows the joined lines', /nouvel épisode d'iz French\.$/.test((await page.locator('#line-0 .written').textContent()).trim()));
+
+  // the same page pasted again: the lines are replaced, not added to
+  const before = (await (await page.request.get(`${base}/api/videos`)).json()).items.length;
+  check('"Paste the transcript again" is offered', await page.isVisible('#repaste summary'));
+  await page.click('#repaste summary');
+  await page.fill('#repaste-text', readFileSync(join(root, 'test', 'fixtures', 'youtube-page-copy.txt'), 'utf8'));
+  await page.click('#repaste-go');
+  await page.waitForURL(/\/watch\?id=5$/);
+  await page.waitForSelector('#readback:not([hidden])');
+  check('a re-paste reads back the same opening', /16 lines in all/.test(await page.locator('#readback').innerText()));
+  check('and adds no video', (await (await page.request.get(`${base}/api/videos`)).json()).items.length === before);
+
+  // a kept line whose text is gone after a re-paste stays kept, from an earlier paste
+  await page.goto(`${base}/watch?id=4`);
+  await page.waitForSelector('#lines .line mark.tint', { timeout: 15000 });
+  await page.locator('#line-0 .line-main').click();
+  await page.locator('#line-0 [data-keep]').click();
+  await page.waitForSelector('#line-0 [data-keep][aria-pressed="true"]');
+  await page.click('#repaste summary');
+  await page.fill('#repaste-text', ['Je ne sais vraiment pas.', ...VIDEO_LINES.slice(2, 6)].join('\n'));
+  await page.click('#repaste-go');
+  await page.waitForURL(/\/watch\?id=4$/);
+  await page.waitForSelector('#readback:not([hidden])');
+  await page.goto(`${base}/kept`);
+  await page.waitForSelector('.kept-item');
+  check('a kept line from an earlier paste says so', /from an earlier paste/.test(await page.locator('.kept-item').first().innerText()));
   check('no script errors on the paste pass', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }
@@ -308,7 +337,20 @@ for (const view of Object.keys(VIEWS)) {
     await page.click('#link-go');
     await page.waitForSelector('#nolines:not([hidden])');
     await page.evaluate(() => window.scrollTo(0, 0));
+    const help = await page.locator('#nolines').innerText();
+    check(`the paste help fits the screen (${tag})`, view === 'phone' ? /On a phone or tablet/.test(help) && !/Ctrl\+A/.test(help) : /On a laptop/.test(help) && !/On a phone or tablet/.test(help));
     await shot(page, `watch-no-captions-${tag}`);
+    // the whole-page paste, joined into sentences; then "Paste the transcript again" open
+    await page.goto(`${base}/watch?id=5`);
+    await page.waitForSelector('#readback:not([hidden])');
+    await page.waitForSelector('#lines .line');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await wait(200);
+    await shot(page, `watch-joined-sentences-${tag}`);
+    await page.click('#repaste summary');
+    await page.locator('#repaste').scrollIntoViewIfNeeded();
+    await wait(200);
+    await shot(page, `watch-repaste-open-${tag}`);
     for (const [id, name] of [[3, 'watch-pasted-readback'], [4, 'watch-pasted-no-timings']]) {
       await page.goto(`${base}/watch?id=${id}`);
       await page.waitForSelector('#readback:not([hidden])');

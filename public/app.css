@@ -208,6 +208,17 @@ mark.tint.shaky { background: var(--shaky-bg); color: var(--shaky-fg); }
   .watch-main { display: flex; flex-direction: column; gap: 12px; }
 }
 
+/* Paste help: laptop wording on a computer, app wording on a phone or tablet
+   (narrow, or touch with no mouse). */
+.on-phone { display: none; }
+@media (max-width: 899px), (hover: none) and (pointer: coarse) {
+  .on-computer { display: none; }
+  .on-phone { display: inline; }
+}
+.repaste summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+.repaste form { margin-top: 12px; }
+.repaste p { margin: 0; }
+
 /* --- patterns page --- */
 .group-head { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin: 14px 0 6px; }
 .group-head.shaky { color: var(--shaky-fg); }

@@ -14,8 +14,12 @@
     );
     const list = el('ul', { class: 'list' });
     for (const k of kept.items) {
-      const where = k.video.youtube_id ? k.video.title + ' · at ' + clock(k.start_s) : 'A line you typed';
-      list.appendChild(el('li', null, el('a', { class: 'kept-item', href: '/watch?id=' + k.video.id + (k.video.youtube_id ? '&line=' + k.idx : '') }, [
+      // A kept line from an earlier paste has no line on the video any more:
+      // it opens the video at the top.
+      let where = k.video.youtube_id ? k.video.title + (k.start_s != null ? ' · at ' + clock(k.start_s) : '') : 'A line you typed';
+      if (k.earlier) where += ' · from an earlier paste';
+      const lineAt = k.video.youtube_id && !k.earlier ? '&line=' + k.idx : '';
+      list.appendChild(el('li', null, el('a', { class: 'kept-item', href: '/watch?id=' + k.video.id + lineAt }, [
         saidNode(k, shaky),
         el('span', { class: 'written', text: k.written }),
         el('span', { class: 'sub', text: where }),
