@@ -93,3 +93,28 @@ downloading any video or audio.
 - **Phone route:** the YouTube app cannot copy its transcript. The
   screenshot-of-the-transcript path is the phone route for the next session.
 - Report: `docs/reports/french-ear-three-report.md`.
+
+## Close-out, session four (24 Sep 2026)
+
+- **Screenshots of the transcript are a way in** (`lib/pictures.js`): one
+  call per picture to `google/gemini-2.5-flash` (fallback
+  `anthropic/claude-sonnet-4.6`), JSON back, each line checked (time reads as
+  a time, never backwards in one picture, text not empty); a bad line is
+  dropped and counted. Overlapping pictures merge by time, the first text
+  seen for a time kept. Then the same path as a paste: sentences, "as said",
+  saved or replacing the lines (`caption_track` = `screenshots`).
+  `readPictures` takes pictures and returns lines with no YouTube in it: the
+  TV-photo path can start from it.
+- **On screen:** "Add screenshots of the transcript" on the home page under
+  the link box, on the video page with no lines, and under "Add the
+  transcript again"; "Here's how I read your screenshots" with the first
+  three lines and the lines from each screenshot. New phone wording.
+- **Android Share takes pictures:** the manifest's share target is now POST,
+  multipart/form-data (Web Share Target API), with a `screenshots` file
+  field; the server holds shared pictures for an hour and the home page
+  shows "1 screenshot added." and "Paste the video's link too". Link shares
+  still land in the link box (GET kept for installs made before).
+- **Checked against mocks only** until Dan's phone round: the picture
+  fixtures are synthetic (`scripts/make-picture-fixtures.mjs`), no real
+  screenshot from the YouTube app was attached.
+- Report: `docs/reports/french-ear-four-report.md`.
