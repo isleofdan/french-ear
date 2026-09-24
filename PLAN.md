@@ -71,3 +71,25 @@ downloading any video or audio.
 - `claude/eloquent-hopper-727dun` is now fully in `main`; deleting it was
   refused by the session's safety check. It is harmless left in place.
 - Report: `docs/reports/french-ear-two-report.md`.
+
+## Close-out, session three (24 Sep 2026)
+
+- **Live, checked by Dan:** the saved Easy French video, joined at the
+  server's restart, opens "Bonjour les amis et bienvenue dans un nouvel
+  épisode d'iz French." with tints back; a fresh whole-page paste through
+  "Paste the transcript again" read the same three opening sentences and
+  refreshed the video without a duplicate; on his phone the YouTube app has
+  Show transcript, but a long-press selects nothing (it jumps the video to
+  that moment), and French ear shows the phone wording.
+- **Lines are sentences** (`lib/sentences.js`): a fragment is cut where a
+  sentence ends inside it, then pieces join until . ? !, 4 pieces or 12
+  seconds; "[Musique]" stands alone. Videos saved earlier are joined at start
+  (`videos.joined`).
+- **A new paste replaces a saved video's lines.** Kept lines move to the
+  matching new line, else to `kept_earlier` ("from an earlier paste").
+- **Publishing stays with Dan's Merge.** The safety check refused writing
+  `.claude/settings.json` (self-modification), and again refused deleting
+  `claude/eloquent-hopper-727dun`.
+- **Phone route:** the YouTube app cannot copy its transcript. The
+  screenshot-of-the-transcript path is the phone route for the next session.
+- Report: `docs/reports/french-ear-three-report.md`.
