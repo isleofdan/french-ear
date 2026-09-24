@@ -24,6 +24,9 @@
       <label for="link">Paste a YouTube link</label>
       <input id="link" name="link" type="text" inputmode="url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=…" required>
       <div class="hint">From the video's Share button. On an Android phone you can also Share straight to French ear.</div>
+      <label for="transcript" class="sub-label">Paste the transcript here (from YouTube's Show transcript panel)</label>
+      <textarea id="transcript" name="transcript" rows="3" placeholder="0:00&#10;Bonjour à tous…"></textarea>
+      <div class="hint">Optional. With a transcript here, French ear uses it and doesn't ask YouTube for the captions.</div>
       <div class="msg" id="link-msg" role="alert"></div>
       <button class="go" type="submit" id="link-go">Show me the lines</button>
     </form>
