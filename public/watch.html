@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>French ear — watch</title>
+<meta name="theme-color" content="#1c4f7a">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/app.css">
+<script src="/common.js"></script>
+</head>
+<body>
+<div id="top"></div>
+<main class="page">
+  <div class="msg" id="load-msg" role="alert"></div>
+  <div class="watch" id="watch" hidden>
+    <div class="watch-main">
+      <div class="watch-head">
+        <h1 class="title" id="title"></h1>
+        <div class="note" id="sub"></div>
+      </div>
+      <div class="status" id="status" hidden></div>
+      <div class="modes" id="modes" role="group" aria-label="How to watch">
+        <button type="button" data-mode="follow" aria-pressed="true">Follow along</button>
+        <button type="button" data-mode="ear" aria-pressed="false">Ear first</button>
+      </div>
+      <div class="player-wrap" id="player-wrap">
+        <div class="player"><div id="player-el"></div></div>
+      </div>
+      <section class="ear" id="ear" hidden aria-live="polite">
+        <p class="note" style="margin:0">The lines are hidden. When something gets past you, press the button: the last two lines show, and the patterns in them count as "got past me".</p>
+        <button class="primary wwt" type="button" id="wwt">What was that?</button>
+        <ol class="lines revealed" id="revealed"></ol>
+      </section>
+      <div class="note" id="filter-note" hidden></div>
+      <ol class="lines" id="lines"></ol>
+      <section id="typed" hidden></section>
+    </div>
+    <aside class="side" id="side">
+      <div class="panel">
+        <h2 class="title" style="font-size:18px">In this episode</h2>
+        <ul class="episode" id="episode"></ul>
+      </div>
+      <div class="panel shaky-box" id="shaky-box" hidden>
+        <h2 class="title" style="font-size:18px">Your shaky ones here</h2>
+        <div id="shaky-text" style="font-size:14px;color:var(--body)"></div>
+      </div>
+    </aside>
+  </div>
+</main>
+<script src="/watch.js"></script>
+</body>
+</html>
