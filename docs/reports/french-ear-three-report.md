@@ -1,6 +1,6 @@
 # FIELD REPORT — french-ear-three — 24 Sep 2026
 
-**For Dan:** this report and the PLAN note are in their own pull request, PR_LINK. Tap **Merge pull request**, then **Confirm merge**. It holds documents only. The app's changes are already live: isleofdan/french-ear#4 was merged and deployed green.
+**For Dan:** this report and the PLAN note are in their own pull request, https://github.com/isleofdan/french-ear/pull/5. Tap **Merge pull request**, then **Confirm merge**. It holds documents only. The app's changes are already live: isleofdan/french-ear#4 was merged and deployed green.
 
 Session: french-ear-three (cloud). Surface: cloud (`flyctl version` failed, as expected). Card: `french-ear`. Origin: Personal Shipyard.
 
