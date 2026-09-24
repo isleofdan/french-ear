@@ -12,7 +12,7 @@
 //   node scripts/screenshots.mjs
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -212,7 +212,7 @@ const UNTIMED_PASTE = VIDEO_LINES.slice(1, 6).join('\n');
   await page.waitForURL(/\/watch\?yt=emptyText02/);
   await page.waitForSelector('#nolines:not([hidden])');
   const why = await page.locator('#nolines').innerText();
-  check('the failed fetch lands on the video page with the instructions', /YouTube wouldn't give me the captions\. On a laptop, open the video, tap \.\.\.more under it, tap Show transcript/.test(why));
+  check('the failed fetch lands on the video page with the instructions', /YouTube wouldn't give me the captions\. On a laptop, open the video, tap \.\.\.more under it, tap Show transcript, then press Ctrl\+A and Ctrl\+C to copy the whole page/.test(why));
   check('the failure names the caption tracks', /Captions the video offers: English \(auto-generated\), French \(auto-generated\), French\./.test(why));
   check('the paste box is right there', await page.isVisible('#paste'));
   check('and "Try YouTube again"', await page.isVisible('#yt-again'));
@@ -248,6 +248,15 @@ const UNTIMED_PASTE = VIDEO_LINES.slice(1, 6).join('\n');
   await page.evaluate(() => { window.__t = 9; window.__state = 1; });
   await wait(600);
   check('nothing follows the clock', (await page.locator('#lines .line.current').count()) === 0);
+  // the whole YouTube page, as Ctrl+A copies it: only the transcript is read
+  await page.goto(`${base}/`);
+  await page.fill('#link', 'https://youtu.be/pageCopy001');
+  await page.fill('#transcript', readFileSync(join(root, 'test', 'fixtures', 'youtube-page-copy.txt'), 'utf8'));
+  await page.click('#link-go');
+  await page.waitForURL(/\/watch\?id=5/);
+  await page.waitForSelector('#readback:not([hidden])');
+  const whole = await page.locator('#readback').innerText();
+  check('a whole-page paste is read as its transcript', /Bonjour les amis et bienvenue dans un/.test(whole) && /17 lines in all/.test(whole), whole.replace(/\s+/g, ' ').slice(0, 160));
   check('no script errors on the paste pass', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }

@@ -58,3 +58,17 @@ test('a line that is only a number or a time of day in the text is not mistaken 
 test('an empty paste gives no lines', () => {
   assert.deepEqual(parseTranscript('  \n\nTranscript\n'), { timed: false, lines: [] });
 });
+
+test('the whole YouTube page copied with Ctrl+A: only the transcript is taken (the shape seen live, 24 Sep 2026)', () => {
+  const page = require('node:fs').readFileSync(require('node:path').join(__dirname, 'fixtures', 'youtube-page-copy.txt'), 'utf8');
+  const r = parseTranscript(page);
+  assert.equal(r.timed, true);
+  assert.equal(r.lines.length, 17);
+  assert.deepEqual(r.lines.slice(0, 3), [
+    { start_s: 0, end_s: 2, written: 'Bonjour les amis et bienvenue dans un' },
+    { start_s: 2, end_s: 6, written: "nouvel épisode d'iz French. Aujourd'hui," },
+    { start_s: 6, end_s: 7, written: 'nous allons simplement demander aux' },
+  ]);
+  assert.deepEqual(r.lines.at(-1), { start_s: 526, end_s: 532, written: '[Musique]' }, 'the page after the transcript is not glued on');
+  for (const l of r.lines) assert.doesNotMatch(l.written, /New|Channel|Related|ago|Reply/, `no page text in "${l.written}"`);
+});
