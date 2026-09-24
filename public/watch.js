@@ -11,13 +11,15 @@
 // Lines pasted from YouTube's transcript panel show the first three as read
 // ("Here's how I read your paste"); pasted with no timings, they are a plain
 // list that does not follow the clock, and Ear first is not offered.
-// Any YouTube video takes a new paste ("Paste the transcript again"), which
-// replaces its lines.
+// Lines read out of screenshots of the transcript show the same way ("Here's
+// how I read your screenshots"), with how many lines came from each picture.
+// Any YouTube video takes a new paste or new screenshots ("Add the transcript
+// again"), which replace its lines.
 // /watch?yt=<YouTube id> is a video YouTube wouldn't give the captions for:
 // nothing saved yet, the player, why, a box for the transcript, and "Try
 // YouTube again".
 (function () {
-  const { api, el, topBar, clock, saidNode, shakySet } = window.FE;
+  const { api, sendPictures, picturePicker, el, topBar, clock, saidNode, shakySet } = window.FE;
   document.getElementById('top').replaceWith(topBar(''));
 
   const q = new URLSearchParams(location.search);
@@ -423,8 +425,31 @@
 
   // --- pasted lines -----------------------------------------------------------
 
+  // How many lines each screenshot gave, as the server answered when they were
+  // sent (kept in this tab only; opened later, the page says less).
+  function picturesNote() {
+    let read = null;
+    try { read = JSON.parse(sessionStorage.getItem('french-ear.read.' + video.id) || 'null'); } catch (e) { /* none */ }
+    if (!read || !read.pictures) return '';
+    const bits = read.pictures.map((p, i) => {
+      const name = 'Screenshot ' + (i + 1) + ': ';
+      if (!p.transcript) return name + 'no transcript found in it.';
+      const n = p.read + (p.read === 1 ? ' line' : ' lines');
+      const again = p.read - p.fresh;
+      return name + n + (again ? ' (' + again + ' already in an earlier screenshot)' : '') + '.';
+    });
+    const dropped = read.pictures.reduce((n, p) => n + p.dropped, 0);
+    if (dropped) bits.push(dropped + (dropped === 1 ? ' line' : ' lines') + ' I couldn’t read whole left out (usually cut off at the top or bottom).');
+    return bits.join(' ');
+  }
+
   function drawReadback() {
     $('readback').hidden = false;
+    const fromPictures = video.caption_track === 'screenshots';
+    $('readback-head').textContent = fromPictures ? 'Here’s how I read your screenshots' : 'Here’s how I read your paste';
+    const note = fromPictures ? picturesNote() : '';
+    $('readback-pictures').hidden = !note;
+    $('readback-pictures').textContent = note;
     const list = $('readback-lines');
     list.textContent = '';
     for (const line of lines.slice(0, 3)) {
@@ -434,14 +459,42 @@
       ]));
     }
     $('readback-note').textContent = lines.length + (lines.length === 1 ? ' line' : ' lines') + ' in all. '
-      + (timed ? 'If these three don’t match how the video starts, the paste was read wrong.'
+      + (timed ? 'If these three don’t match how the video starts, the ' + (fromPictures ? 'screenshots were' : 'paste was') + ' read wrong.'
         : 'No timings in this transcript — lines won’t follow the video.');
   }
 
-  // "Paste the transcript again": the new paste replaces the video's lines,
-  // and the page opens again on them.
+  // A "Add screenshots of the transcript" form: the pictures and this video's
+  // link go up; the page opens on the video's lines. `pre` names the form
+  // ('' on the no-lines page, 're-' under "Add the transcript again").
+  function picturesForm(pre, youtubeId, busy) {
+    const form = $(pre + 'pics-form');
+    const input = $(pre + 'pictures');
+    const go = $(pre + 'pics-go');
+    const msg = $(pre + 'pics-msg');
+    picturePicker(input, $(pre + 'picked'), (n) => { $(pre + 'pics-controls').hidden = !n; msg.textContent = ''; });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+      go.disabled = true;
+      if (busy) busy(true);
+      go.textContent = 'Reading your screenshots… this can take a minute';
+      try {
+        const v = await sendPictures(youtubeId, [...input.files]);
+        location.replace('/watch?id=' + v.id);
+      } catch (err) {
+        msg.textContent = err.message;
+        go.disabled = false;
+        if (busy) busy(false);
+        go.textContent = 'Use these screenshots';
+      }
+    });
+  }
+
+  // "Add the transcript again": a new paste or new screenshots replace the
+  // video's lines, and the page opens again on them.
   function drawRepaste() {
     $('repaste').hidden = false;
+    picturesForm('re-', video.youtube_id);
     const form = $('repaste-form');
     const go = $('repaste-go');
     const msg = $('repaste-msg');
@@ -483,6 +536,7 @@
     const go = $('paste-go');
     const again = $('yt-again');
     const msg = $('paste-msg');
+    picturesForm('', ytId, (on) => { go.disabled = on; again.disabled = on; });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       msg.textContent = '';
@@ -550,9 +604,10 @@
       return;
     }
 
-    const pasted = video.caption_track === 'pasted';
+    const pasted = video.caption_track === 'pasted' || video.caption_track === 'screenshots';
     timed = lines.some((l) => l.start_s != null);
-    $('sub').textContent = video.counts.total + ' lines · ' + (pasted ? 'from a transcript you pasted' : 'captions: ' + (video.caption_track || 'unknown'));
+    $('sub').textContent = video.counts.total + ' lines · ' + (video.caption_track === 'screenshots' ? 'from your screenshots of the transcript'
+      : pasted ? 'from a transcript you pasted' : 'captions: ' + (video.caption_track || 'unknown'));
     drawLines();
     drawStatus();
     drawEpisode();

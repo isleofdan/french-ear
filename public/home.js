@@ -1,6 +1,6 @@
 'use strict';
 (function () {
-  const { api, el, topBar } = window.FE;
+  const { api, sendPictures, picturePicker, el, topBar } = window.FE;
   document.getElementById('top').replaceWith(topBar('/'));
 
   const linkForm = document.getElementById('link-form');
@@ -9,12 +9,34 @@
   const linkGo = document.getElementById('link-go');
   const transcript = document.getElementById('transcript');
 
-  // A link shared from another app (Android's Share -> French ear) lands here.
-  const shared = new URLSearchParams(location.search).get('shared');
-  if (shared) {
-    const m = shared.match(/https?:\/\/\S+/);
-    link.value = m ? m[0] : shared;
-    history.replaceState(null, '', '/');
+  const pictures = document.getElementById('pictures');
+  const picked = document.getElementById('picked');
+
+  // A link shared from another app (Android's Share -> French ear) lands in
+  // the link box; shared screenshots are held on the server and counted here.
+  const params = new URLSearchParams(location.search);
+  const shared = params.get('shared');
+  let sharedToken = params.get('pictures');
+  let sharedCount = 0;
+  const m = shared ? shared.match(/https?:\/\/\S+/) : null;
+  if (m) link.value = m[0];
+  else if (shared && !sharedToken) link.value = shared;
+  if (params.get('share_error')) linkMsg.textContent = params.get('share_error');
+  history.replaceState(null, '', sharedToken ? '/?pictures=' + sharedToken : '/');
+  const sayPicked = picturePicker(pictures, picked, null, () => sharedCount);
+  if (sharedToken) {
+    api('GET', '/api/shared/' + sharedToken).then((r) => {
+      sharedCount = r.count;
+      if (!sharedCount) {
+        sharedToken = null;
+        history.replaceState(null, '', '/');
+        linkMsg.textContent = 'The shared screenshots are no longer here (they are kept for an hour). Add them again.';
+        return;
+      }
+      sayPicked();
+      if (!link.value) linkMsg.textContent = "Paste the video's link too.";
+      link.focus();
+    }).catch((err) => { linkMsg.textContent = err.message; });
   }
 
   linkForm.addEventListener('submit', async (e) => {
@@ -22,9 +44,17 @@
     linkMsg.textContent = '';
     linkGo.disabled = true;
     const pasted = transcript.value.trim();
-    linkGo.textContent = pasted ? 'Reading your transcript…' : 'Reading the captions…';
+    const withPictures = pictures.files.length > 0 || sharedCount > 0;
+    if (withPictures && pasted) {
+      linkMsg.textContent = 'Use either the screenshots or the pasted transcript, not both. Clear the transcript box to use the screenshots.';
+      linkGo.disabled = false;
+      return;
+    }
+    linkGo.textContent = withPictures ? 'Reading your screenshots… this can take a minute' : pasted ? 'Reading your transcript…' : 'Reading the captions…';
     try {
-      const v = await api('POST', '/api/videos', pasted ? { link: link.value, transcript: pasted } : { link: link.value });
+      const v = withPictures
+        ? await sendPictures(link.value, [...pictures.files], sharedCount ? sharedToken : null)
+        : await api('POST', '/api/videos', pasted ? { link: link.value, transcript: pasted } : { link: link.value });
       const t = v.start_s ? '&t=' + v.start_s : '';
       location.href = '/watch?id=' + v.id + t;
     } catch (err) {
