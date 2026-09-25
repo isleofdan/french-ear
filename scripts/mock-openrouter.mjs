@@ -10,6 +10,14 @@
 // picture it does not know comes back as "no transcript". A fixture marked
 // first_model_fails makes the first picture model answer 500; a picture whose
 // bytes contain PANNE-TOTALE makes every model answer 500.
+// A photo of the TV is a picture call too, answered the same way (its entry
+// in answers.json is the subtitle a model would read). The TV path's text
+// call (an English subtitle and his notes -> the French) is answered from
+// TV_ANSWERS below by the English subtitle, else, with no subtitle, a line
+// made from the sound note. Markers in the subtitle or the sound note:
+//   MAUVAIS  -> the answer names a pattern that is not in the list
+//   DOUTE    -> the answer is sure = low (a guess)
+//   PANNE-TV -> every model answers 500
 // GET /calls answers { calls, models } so a check can see who was asked.
 //   node scripts/mock-openrouter.mjs [port] [first-model-id] [first-picture-model-id]
 import http from 'node:http';
@@ -23,6 +31,30 @@ const port = Number(process.argv[2]) || 8802;
 const firstModel = process.argv[3] || 'anthropic/claude-sonnet-4.6';
 const firstPictureModel = process.argv[4] || 'google/gemini-2.5-flash';
 const models = [];
+
+const TV_ANSWERS = {
+  "There's something wrong.": {
+    written: 'Il y a quelque chose qui ne va pas.', spoken: 'Y a quelque chose qui va pas.',
+    spans: [{ start: 0, end: 3, text: 'Y a', pattern: 'il-y-a' }, { start: 20, end: 28, text: 'qui va pas', pattern: 'ne-dropped' }],
+    patterns: ['il-y-a', 'ne-dropped'], sure: 'medium', why: 'The subtitle and "ya" at the start point to il y a, said y a.',
+  },
+};
+const FROM_SOUND = {
+  written: 'Je ne sais pas.', spoken: 'Chais pas.',
+  spans: [{ start: 0, end: 5, text: 'Chais', pattern: 'je-ch' }, { start: 0, end: 9, text: 'Chais pas', pattern: 'ne-dropped' }],
+  patterns: ['je-ch', 'ne-dropped'], sure: 'medium', why: '"shay pa" is how je ne sais pas comes out.',
+};
+
+// The TV path's text call -> [status, body].
+function tvReply(r, notes) {
+  const all = `${notes.english_subtitle} ${notes.sounded_like} ${notes.happening}`;
+  if (all.includes('PANNE-TV')) return [500, { error: { message: 'provider down (mock)' } }];
+  const base = TV_ANSWERS[notes.english_subtitle.replace(/ ?(MAUVAIS|DOUTE)/g, '')] || FROM_SOUND;
+  const answer = JSON.parse(JSON.stringify(base));
+  if (all.includes('MAUVAIS')) answer.spans[0].pattern = 'liaison-magique';
+  if (all.includes('DOUTE')) answer.sure = 'low';
+  return [200, { choices: [{ message: { role: 'assistant', content: JSON.stringify(answer) }, finish_reason: 'stop' }], usage: { prompt_tokens: 2600, completion_tokens: 220, cost: 0.011 } }];
+}
 
 const picDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'test', 'fixtures', 'pictures');
 const picAnswers = JSON.parse(readFileSync(join(picDir, 'answers.json'), 'utf8'));
@@ -56,7 +88,13 @@ http.createServer((req, res) => {
       res.writeHead(status, { 'content-type': 'application/json' });
       return res.end(JSON.stringify(out));
     }
-    const lines = JSON.parse(r.messages[1].content);
+    const asked = JSON.parse(r.messages[1].content);
+    if (!Array.isArray(asked) && 'english_subtitle' in asked) {
+      const [status, out] = tvReply(r, asked);
+      res.writeHead(status, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify(out));
+    }
+    const lines = asked;
     const reply = (content, finish = 'stop') => {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content }, finish_reason: finish }] }));

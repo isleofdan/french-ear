@@ -18,6 +18,7 @@ const tally = require('./lib/tally');
 const { parseTranscript } = require('./lib/transcript');
 const { joinFragments } = require('./lib/sentences');
 const pictures = require('./lib/pictures');
+const tv = require('./lib/tv');
 const { PATTERNS } = require('./lib/patterns');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readForm, serveStatic } = require('./lib/http');
@@ -87,9 +88,13 @@ function videoOut(id) {
   return { ...v, working: spoken.isRunning(v.id) };
 }
 
+function momentOut(m) {
+  return { ...m, busy: tv.isBusy(m.id) };
+}
+
 route('GET', /^\/api\/home$/, (req, res) => {
   const { totals } = tally.states(db.allEvents());
-  return sendJson(res, 200, { totals, videos: db.listVideos({ limit: 5 }) });
+  return sendJson(res, 200, { totals, videos: db.listVideos({ limit: 5 }), moments: db.listMoments({ limit: 3 }).map(momentOut) });
 });
 
 route('GET', /^\/api\/patterns$/, (req, res) => sendJson(res, 200, tally.states(db.allEvents())));
@@ -294,12 +299,53 @@ route('POST', /^\/api\/events$/, async (req, res) => {
   return sendJson(res, 200, { recorded });
 });
 
+// --- photos from the TV -----------------------------------------------------
+
+// A multipart form with one photo (the field "photo"). The photo is stored on
+// the volume and the moment made at once; the subtitle is read in the
+// background, and the after-photo page shows it when it comes.
+route('POST', /^\/api\/moments$/, async (req, res) => {
+  const form = await readForm(req, tv.PHOTO_LIMIT + 256 * 1024, 'the photo');
+  const photo = form.files.find((f) => f.bytes.length > 0);
+  if (!photo) throw new db.AppError(400, 'Take or choose a photo first.');
+  const id = tv.addPhoto(photo.bytes);
+  console.log(`tv: photo ${id} added (${photo.bytes.length} bytes)`);
+  return sendJson(res, 201, momentOut(db.getMoment(id)));
+});
+
+route('GET', /^\/api\/moments$/, (req, res) => sendJson(res, 200, { items: db.listMoments({ limit: 200 }).map(momentOut) }));
+
+route('GET', /^\/api\/moments\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200, momentOut(db.getMoment(id))));
+
+route('GET', /^\/api\/moments\/(?<id>\d+)\/photo$/, (req, res, { id }) => {
+  const file = tv.photoFile(db.momentPhotoPath(id));
+  let bytes;
+  try { bytes = fs.readFileSync(file); } catch { throw new db.AppError(404, 'The photo is missing.'); }
+  res.writeHead(200, { 'content-type': pictures.pictureType(bytes) || 'application/octet-stream', 'content-length': bytes.length, 'cache-control': 'private, max-age=86400' });
+  return res.end(bytes);
+});
+
+// "Save for later", and later "Save and work it out again": { subtitle?,
+// heard_note?, scene_note? }. Saved at once; the French is worked out in the
+// background.
+route('POST', /^\/api\/moments\/(?<id>\d+)$/, async (req, res, { id }) => {
+  const body = await readJson(req);
+  return sendJson(res, 200, momentOut(tv.saveMoment(Number(id), body)));
+});
+
+// "Try again": the photo read again if that failed, and the French worked out.
+route('POST', /^\/api\/moments\/(?<id>\d+)\/retry$/, (req, res, { id }) => {
+  const m = db.getMoment(id);
+  if (!m.saved) tv.readMoment(m.id); else tv.workMoment(m.id);
+  return sendJson(res, 202, momentOut(db.getMoment(id)));
+});
+
 route('GET', /^\/api\/pattern-list$/, (req, res) => sendJson(res, 200, { items: PATTERNS }));
 
 // --- serving ----------------------------------------------------------------
 
 const OPEN_FILES = new Set(['/manifest.webmanifest', '/sw.js', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon.svg', '/app.css']);
-const PAGES = { '/': '/index.html', '/watch': '/watch.html', '/kept': '/kept.html', '/patterns': '/patterns.html' };
+const PAGES = { '/': '/index.html', '/watch': '/watch.html', '/kept': '/kept.html', '/patterns': '/patterns.html', '/tv': '/tv.html', '/moment': '/moment.html' };
 
 async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
@@ -358,6 +404,7 @@ async function handle(req, res) {
 }
 
 db.open(DATA_DIR);
+tv.configure({ dataDir: DATA_DIR });
 console.log(`database: ${path.join(DATA_DIR, 'french-ear.db')}`);
 // Videos saved before lines were joined into sentences are joined now; their
 // lines go back to pending and the "as said" pass runs on the sentences.
@@ -370,6 +417,8 @@ for (const id of db.videosNotJoined()) {
 }
 // Lines left pending by a restart are worked again.
 for (const id of db.videosWithPending()) spoken.workVideo(id);
+// Photos from the TV a restart left half done.
+tv.resume();
 
 const server = http.createServer((req, res) => {
   handle(req, res).catch((e) => {
