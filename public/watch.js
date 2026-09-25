@@ -19,7 +19,7 @@
 // nothing saved yet, the player, why, a box for the transcript, and "Try
 // YouTube again".
 (function () {
-  const { api, sendPictures, picturePicker, el, topBar, clock, saidNode, shakySet } = window.FE;
+  const { api, sendPictures, picturePicker, el, topBar, clock, saidNode, shakySet, whyList } = window.FE;
   document.getElementById('top').replaceWith(topBar(''));
 
   const q = new URLSearchParams(location.search);
@@ -63,20 +63,7 @@
     if (line.status === 'pending') return el('p', { class: 'note', text: 'Still working out how this line is said.' });
     if (line.status === 'unworked') return el('p', { class: 'note', text: 'Not yet worked out. Use "try again" at the top of the page.' });
     if (!line.spans.length) return el('p', { class: 'note', text: 'Said as written — nothing here changes in speech.' });
-    const seen = new Set();
-    const items = [];
-    for (const s of line.spans) {
-      const key = s.pattern + ':' + s.start;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const p = byId[s.pattern] || { name: s.pattern, explain: '' };
-      items.push(el('li', null, [
-        el('span', { class: 'frag', text: '“' + line.spoken.slice(s.start, s.end) + '” ' }),
-        el('b', { text: p.name + (shaky.has(s.pattern) ? ' (shaky for you)' : '') }),
-        ' — ' + p.explain,
-      ]));
-    }
-    return el('ul', { class: 'why' }, items);
+    return whyList(line, byId, shaky);
   }
 
   function keepButton(line) {

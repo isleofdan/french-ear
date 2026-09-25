@@ -37,6 +37,15 @@
       <button class="go" type="submit" id="link-go">Show me the lines</button>
     </form>
 
+    <form class="panel stack" id="photo-form">
+      <label class="pick pick-plain" id="photo-pick">
+        <input type="file" id="photo" name="photo" accept="image/*">
+        <span id="photo-text">Add a photo from the TV</span>
+      </label>
+      <div class="note">When a line gets past you on TV, take a photo of the screen. You can say what it sounded like next.</div>
+      <div class="msg" id="photo-msg" role="alert"></div>
+    </form>
+
     <form class="panel stack" id="typed-form">
       <label for="typed">Type or paste a line</label>
       <textarea id="typed" name="text" rows="2" placeholder="Je ne sais pas ce que tu veux dire." required></textarea>
@@ -62,6 +71,14 @@
         <a href="/kept">Kept lines</a>
       </div>
       <ul class="list" id="recent"></ul>
+    </section>
+
+    <section class="stack" aria-labelledby="tv-head" id="tv-section" hidden>
+      <div class="row-head">
+        <h2 class="title" id="tv-head">From the TV</h2>
+        <a href="/tv">See them all</a>
+      </div>
+      <ul class="list" id="moments"></ul>
     </section>
   </div>
 </main>

@@ -24,6 +24,15 @@ let the transcript be copied, so screenshots of it can be added instead; the
 lines are read out of the pictures (`lib/pictures.js`). Sharing a screenshot
 to French ear from Android's Share lands it on the home page.
 
+The TV is the other place lines get past him. "Add a photo from the TV" on
+the home page takes one photo of the screen, paused or not; the subtitle on
+it is read, and he can note in a few words what it sounded like and what is
+happening, then "Save for later". The app works out the French later
+(`lib/tv.js`): a French subtitle goes through the ordinary "as said" pass; an
+English one (or none, with a sound note) goes to one call that gives the most
+likely French line, as written and as said, its patterns, and how sure it is.
+The photos are listed on "From the TV", newest first.
+
 Nothing in the app notifies, reminds or counts days. It answers when opened.
 
 ## Running it
@@ -54,6 +63,20 @@ one OpenRouter call per picture:
 - when that call fails outright, the same picture goes once to
   **`anthropic/claude-sonnet-4.6`** (`IMAGE_FALLBACK_MODEL` overrides it).
 
+A cost per screenshot has not yet been read from the live log; the figure
+below is an estimate at Flash's list price, not a measured one: about
+$0.002 or less per phone screenshot (~1,300 tokens in, ~300–500 out). The
+server log's `screenshots: … cost $…` line gives the real one.
+
+Photos from the TV go to the same two picture models, with a prompt of their
+own: the subtitle on the photo, exactly as printed, and its language. The
+answer is checked (`checkSubtitleLine`): some text and English or French, or
+"no subtitle" (a state, not a failure). An English subtitle is then worked
+out into French by the "as said" models (`MODEL`, then `FALLBACK_MODEL`), one
+call per photo, its answer checked with the "as said" pass's own check plus a
+French line and a sure word (high, medium, low). The server log names the
+model and cost of each (`tv: …`).
+
 Each line it reads is checked (`lib/pictures.js`, `checkPictureLine`): the
 time must read as a time and never go backwards within a picture, the text
 must not be empty. A line that fails is dropped and counted, never guessed.
@@ -72,7 +95,7 @@ fails is saved with its reason and shown as "not yet worked out", with a
 | `APP_PASSWORD` | the shared passphrase; unset means only the login page serves |
 | `COOKIE_SECRET` | signs the 30-day cookie; made once by the deploy workflow |
 | `OPENROUTER_API_KEY` | the key for the "as said" pass |
-| `DATA_DIR` | where the SQLite file lives (`/data` on Fly, `./var` locally) |
+| `DATA_DIR` | where the SQLite file and the `photos/` folder live (`/data` on Fly, `./var` locally) |
 | `MODEL`, `FALLBACK_MODEL` | override the two "as said" models |
 | `IMAGE_MODEL`, `IMAGE_FALLBACK_MODEL` | override the two models that read screenshots |
 | `OPENROUTER_URL`, `YT_BASE` | point the app at local mocks in checks |
@@ -84,11 +107,12 @@ fails is saved with its reason and shown as "not yet worked out", with a
 - `lib/youtube.js` — the link parser and the caption fetch (title, tracks, lines).
 - `lib/transcript.js` — a transcript pasted from YouTube's panel, read into lines.
 - `lib/pictures.js` — lines read out of pictures (screenshots of the transcript): the call, the checks, the merge.
+- `lib/tv.js` — photos from the TV: stored, the subtitle read, the French worked out, the tally.
 - `lib/spoken.js` — the "as said" pass: the prompt, the call, the checks on each line.
 - `lib/tally.js` — the one place the solid / shaky / seen / not met yet rule lives.
-- `lib/db.js` — the SQLite tables: videos, lines, kept, events.
+- `lib/db.js` — the SQLite tables: videos, lines, kept, events, moments (photos from the TV; the photos themselves in `photos/` beside the database).
 - `data/patterns.json` — the twenty patterns, fixed.
-- `public/` — the pages: home, watch, kept, patterns, login; the manifest (with Android's share target) and the service worker.
+- `public/` — the pages: home, watch, From the TV, one photo (moment), kept, patterns, login; the manifest (with Android's share target) and the service worker.
 - `test/` — the checks (`node --test`); `scripts/` — the mock servers and the screenshot run.
 - `docs/DESIGN.md` — the design decisions; `docs/screenshots/`, `docs/reports/`.
 

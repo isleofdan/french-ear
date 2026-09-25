@@ -1,6 +1,6 @@
 'use strict';
 // Every kept line, newest first, with its video and time. Tapping one opens
-// the watch page at that line.
+// the watch page at that line (a line from a photo of the TV opens the photo).
 (function () {
   const { api, el, topBar, clock, saidNode, shakySet } = window.FE;
   document.getElementById('top').replaceWith(topBar('/kept'));
@@ -16,10 +16,12 @@
     for (const k of kept.items) {
       // A kept line from an earlier paste has no line on the video any more:
       // it opens the video at the top.
-      let where = k.video.youtube_id ? k.video.title + (k.start_s != null ? ' · at ' + clock(k.start_s) : '') : 'A line you typed';
+      let where = k.video.youtube_id ? k.video.title + (k.start_s != null ? ' · at ' + clock(k.start_s) : '') : k.moment_id ? 'From the TV' : 'A line you typed';
       if (k.earlier) where += ' · from an earlier paste';
       const lineAt = k.video.youtube_id && !k.earlier ? '&line=' + k.idx : '';
-      list.appendChild(el('li', null, el('a', { class: 'kept-item', href: '/watch?id=' + k.video.id + lineAt }, [
+      // A line from a photo of the TV opens the photo.
+      const href = k.moment_id ? '/moment?id=' + k.moment_id : '/watch?id=' + k.video.id + lineAt;
+      list.appendChild(el('li', null, el('a', { class: 'kept-item', href }, [
         saidNode(k, shaky),
         el('span', { class: 'written', text: k.written }),
         el('span', { class: 'sub', text: where }),
