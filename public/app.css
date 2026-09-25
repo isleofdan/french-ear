@@ -210,11 +210,28 @@ mark.tint.shaky { background: var(--shaky-bg); color: var(--shaky-fg); }
 
 /* Paste help: laptop wording on a computer, app wording on a phone or tablet
    (narrow, or touch with no mouse). */
-.on-phone { display: none; }
+.on-phone, .on-phone-block { display: none; }
 @media (max-width: 899px), (hover: none) and (pointer: coarse) {
   .on-computer { display: none; }
   .on-phone { display: inline; }
+  .on-phone-block { display: block; }
 }
+
+/* "Add screenshots of the transcript": a button that opens the phone's
+   picture picker; the file input itself is hidden inside it. */
+.pick { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 10px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; text-align: center; }
+.pick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.pick.pick { font-size: 15px; font-weight: 600; } /* over the forms' own label sizes */
+.pick:focus-within { outline: 3px solid var(--current); outline-offset: 2px; }
+.pick::before { content: ''; width: 18px; height: 18px; flex-shrink: 0; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 5h3l2-2h6l2 2h3a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 5h3l2-2h6l2 2h3a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.big-box .pick { color: #ffffff; border: 2px solid rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.08); }
+.big-box .picked { opacity: 1; font-size: 14px; font-weight: 600; }
+.pick-plain { color: var(--text); border: 1px solid var(--line-strong); background: var(--panel); }
+.picked { margin: 0; }
+.repaste-body { margin-top: 12px; }
+.repaste-body form { margin-top: 0; }
 .repaste summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
 .repaste form { margin-top: 12px; }
 .repaste p { margin: 0; }

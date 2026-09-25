@@ -1,0 +1,107 @@
+{
+  "_about": "What a model would answer for each picture fixture (the mock sends it back), and the lines the app must make of it. Synthetic pictures: made by scripts/make-picture-fixtures.mjs.",
+  "shot-1.png": {
+    "answer": {
+      "transcript": true,
+      "lines": [
+        {
+          "time": "0:00",
+          "text": "Bonjour les amis et bienvenue dans un"
+        },
+        {
+          "time": "0:02",
+          "text": "nouvel épisode d'iz French. Aujourd'hui,"
+        },
+        {
+          "time": "0:06",
+          "text": "nous allons simplement demander aux"
+        },
+        {
+          "time": "0:07",
+          "text": "passants si ils sont heureux. C'est"
+        },
+        {
+          "time": "0:10",
+          "text": "parti."
+        },
+        {
+          "time": "0:12",
+          "text": "[Musique]"
+        },
+        {
+          "time": "0:19",
+          "text": "Est-ce que vous êtes heureux ?"
+        }
+      ]
+    }
+  },
+  "shot-2.png": {
+    "answer": {
+      "transcript": true,
+      "lines": [
+        {
+          "time": "0:10",
+          "text": "parti."
+        },
+        {
+          "time": "0:12",
+          "text": "[Musique]"
+        },
+        {
+          "time": "0:19",
+          "text": "Est-ce que vous etes heureux ?"
+        },
+        {
+          "time": "0:21",
+          "text": "Parfaitement heureux. Dès le moment où"
+        },
+        {
+          "time": "0:23",
+          "text": "on est en bonne santé, je suis heureux."
+        },
+        {
+          "time": "0:25",
+          "text": "Ouais. Qu'est-ce qui vous rend heureux"
+        },
+        {
+          "time": "1:47",
+          "text": "rend heureux ? Qu'est-ce qui me rend"
+        },
+        {
+          "time": "1:48",
+          "text": "heureux ? Euh je sais pas, je pense"
+        },
+        {
+          "time": "1:50",
+          "text": ""
+        }
+      ]
+    }
+  },
+  "shot-accents.png": {
+    "first_model_fails": true,
+    "answer": {
+      "transcript": true,
+      "lines": [
+        {
+          "time": "1:02:03",
+          "text": "Aujourd’hui, ça va être génial, c’est-à-dire…"
+        },
+        {
+          "time": "1:02:05",
+          "text": "Qu’est-ce qu’il a dit ? « Là-bas », à côté."
+        },
+        {
+          "time": "01:02:09",
+          "text": "L’hôtel où j’suis allé, c'était pas cher."
+        }
+      ]
+    }
+  },
+  "no-transcript.png": {
+    "answer": {
+      "transcript": false,
+      "lines": []
+    }
+  }
+}

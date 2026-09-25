@@ -17,6 +17,9 @@ export const KNOWN = {
   'Voilà le problème.': ["V'là le problème.", [["V'là", 'vowel-swallowed']]],
   'Bonjour à tous.': ['Bonjour à tous.', []],
   '[Musique]': ['[Musique]', []],
+  // from the opening of the real video used in the checks (flS3MVNXWbw)
+  "Aujourd'hui, nous allons simplement demander aux passants si ils sont heureux.": ["Aujourd'hui, on va simplement d'mander aux passants si i sont heureux.", [['on va', 'on-for-nous'], ["d'mander", 'e-dropped'], ['i sont', 'il-i']]],
+  'Est-ce que vous êtes heureux ?': ['Vous êtes heureux ?', [['Vous êtes heureux ?', 'question-tone']]],
 };
 
 // The caption lines of the mock videos, in order, 3.5 seconds each.

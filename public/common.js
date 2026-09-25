@@ -24,6 +24,46 @@
     return data;
   }
 
+  // Screenshots of the transcript and the video's link, sent as a form.
+  // `shared` is the token of screenshots shared in from another app. On
+  // success the answer's `read` (the lines from each picture) is kept for the
+  // watch page's "Here's how I read your screenshots".
+  async function sendPictures(link, files, shared) {
+    const form = new FormData();
+    form.append('link', link || '');
+    if (shared) form.append('shared', shared);
+    for (const f of files || []) form.append('screenshots', f, f.name);
+    const res = await fetch('/api/screenshots', { method: 'POST', body: form, headers: { accept: 'application/json' }, credentials: 'same-origin' });
+    if (res.status === 401) {
+      location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
+      throw new Error('Sign in first.');
+    }
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* empty body */ }
+    if (!res.ok) {
+      const err = new Error(data.error || (res.status === 413 ? 'Those pictures are too big to send in one go. Send fewer at a time.' : 'The server answered ' + res.status + '.'));
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    try { sessionStorage.setItem('french-ear.read.' + data.id, JSON.stringify(data.read)); } catch (e) { /* no storage: the page says less */ }
+    return data;
+  }
+
+  // The "Add screenshots of the transcript" control: the picker, and a line
+  // saying how many are added. `extra` is a count already held (shared in).
+  function picturePicker(input, picked, onChange, extra) {
+    const say = () => {
+      const n = input.files.length + (extra ? extra() : 0);
+      picked.hidden = !n;
+      picked.textContent = n === 1 ? '1 screenshot added.' : n + ' screenshots added.';
+      if (onChange) onChange(n);
+    };
+    input.addEventListener('change', say);
+    say();
+    return say;
+  }
+
   function el(tag, attrs, children) {
     const n = document.createElement(tag);
     if (attrs) {
@@ -85,7 +125,7 @@
     return new Set((patternsAnswer.patterns || []).filter((p) => p.state === 'shaky').map((p) => p.id));
   }
 
-  window.FE = { api, el, topBar, clock, saidNode, shakySet };
+  window.FE = { api, sendPictures, picturePicker, el, topBar, clock, saidNode, shakySet };
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });

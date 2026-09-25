@@ -24,9 +24,15 @@
       <label for="link">Paste a YouTube link</label>
       <input id="link" name="link" type="text" inputmode="url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=…" required>
       <div class="hint">From the video's Share button. On an Android phone you can also Share straight to French ear.</div>
+      <label class="pick" id="pick">
+        <input type="file" id="pictures" name="screenshots" accept="image/*" multiple>
+        <span id="pick-text">Add screenshots of the transcript</span>
+      </label>
+      <div class="hint picked" id="picked" hidden></div>
+      <div class="hint on-phone-block">On a phone or tablet, open the video in the YouTube app, tap the title, tap Show transcript, take a screenshot of the transcript, scroll and take another until you have it all, then add the screenshots here.</div>
       <label for="transcript" class="sub-label">Paste the transcript here (from YouTube's Show transcript panel)</label>
       <textarea id="transcript" name="transcript" rows="3" placeholder="0:00&#10;Bonjour à tous…"></textarea>
-      <div class="hint">Optional. <span class="on-computer">On a laptop: open the video, tap ...more under it, tap Show transcript, press Ctrl+A then Ctrl+C, and paste here. The whole page is fine.</span><span class="on-phone">On a phone or tablet, open the video in the YouTube app, tap the title to expand the description, tap Show transcript, then try to select the transcript text and copy it. If the app won't let you copy, take a screenshot of the transcript and send it to Dan.</span> With a transcript here, French ear doesn't ask YouTube for the captions. Pasting again for a video you already have replaces its lines.</div>
+      <div class="hint">Optional. <span class="on-computer">On a laptop: open the video, tap ...more under it, tap Show transcript, press Ctrl+A then Ctrl+C, and paste here. The whole page is fine.</span><span class="on-phone">On a phone or tablet the YouTube app won't let you copy the transcript: use the screenshots above.</span> With a transcript or screenshots here, French ear doesn't ask YouTube for the captions. Sending them again for a video you already have replaces its lines.</div>
       <div class="msg" id="link-msg" role="alert"></div>
       <button class="go" type="submit" id="link-go">Show me the lines</button>
     </form>

@@ -19,7 +19,10 @@ YouTube often refuses to hand caption text to a server (session one met HTTP
 from YouTube's own "Show transcript" panel and pasted under the link, or on
 the video's page when the fetch fails. The paste is read with or without
 timestamps (`lib/transcript.js`); without them, the lines are a plain list
-that does not follow the video.
+that does not follow the video. On a phone or tablet the YouTube app will not
+let the transcript be copied, so screenshots of it can be added instead; the
+lines are read out of the pictures (`lib/pictures.js`). Sharing a screenshot
+to French ear from Android's Share lands it on the home page.
 
 Nothing in the app notifies, reminds or counts days. It answers when opened.
 
@@ -43,7 +46,21 @@ The "as said" pass calls OpenRouter, one call per batch of up to 40 lines:
   JSON), the same batch goes once to **`google/gemini-2.5-flash`**
   (`FALLBACK_MODEL` overrides it).
 
-Every line of an answer is checked on its own (`lib/spoken.js`, `checkLine`):
+Screenshots of the transcript (a phone or tablet, where the YouTube app will
+not let the transcript be copied) are read by a model that reads pictures,
+one OpenRouter call per picture:
+
+- first **`google/gemini-2.5-flash`** (`IMAGE_MODEL` overrides it);
+- when that call fails outright, the same picture goes once to
+  **`anthropic/claude-sonnet-4.6`** (`IMAGE_FALLBACK_MODEL` overrides it).
+
+Each line it reads is checked (`lib/pictures.js`, `checkPictureLine`): the
+time must read as a time and never go backwards within a picture, the text
+must not be empty. A line that fails is dropped and counted, never guessed.
+Overlapping screenshots are merged by time. The server log names the model
+and the cost of each picture.
+
+Every line of an "as said" answer is checked on its own (`lib/spoken.js`, `checkLine`):
 pattern ids must be in the list, spans must lie inside the line. A line that
 fails is saved with its reason and shown as "not yet worked out", with a
 "try again".
@@ -56,7 +73,8 @@ fails is saved with its reason and shown as "not yet worked out", with a
 | `COOKIE_SECRET` | signs the 30-day cookie; made once by the deploy workflow |
 | `OPENROUTER_API_KEY` | the key for the "as said" pass |
 | `DATA_DIR` | where the SQLite file lives (`/data` on Fly, `./var` locally) |
-| `MODEL`, `FALLBACK_MODEL` | override the two models |
+| `MODEL`, `FALLBACK_MODEL` | override the two "as said" models |
+| `IMAGE_MODEL`, `IMAGE_FALLBACK_MODEL` | override the two models that read screenshots |
 | `OPENROUTER_URL`, `YT_BASE` | point the app at local mocks in checks |
 | `COOKIE_INSECURE=1` | lets the cookie work over plain http locally |
 
@@ -65,6 +83,7 @@ fails is saved with its reason and shown as "not yet worked out", with a
 - `server.js` — one plain Node server: the passphrase gate, the JSON routes under `/api/`, the pages.
 - `lib/youtube.js` — the link parser and the caption fetch (title, tracks, lines).
 - `lib/transcript.js` — a transcript pasted from YouTube's panel, read into lines.
+- `lib/pictures.js` — lines read out of pictures (screenshots of the transcript): the call, the checks, the merge.
 - `lib/spoken.js` — the "as said" pass: the prompt, the call, the checks on each line.
 - `lib/tally.js` — the one place the solid / shaky / seen / not met yet rule lives.
 - `lib/db.js` — the SQLite tables: videos, lines, kept, events.

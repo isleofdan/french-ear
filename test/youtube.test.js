@@ -83,9 +83,13 @@ test("the manifest's share target validates", () => {
   for (const k of ['name', 'short_name', 'start_url', 'display', 'icons', 'share_target']) assert.ok(m[k], `manifest has ${k}`);
   assert.ok(['standalone', 'fullscreen', 'minimal-ui'].includes(m.display));
   const st = m.share_target;
-  assert.equal(st.method, 'GET');
+  // POST with multipart/form-data: the Web Share Target API's form for files
+  assert.equal(st.method, 'POST');
+  assert.equal(st.enctype, 'multipart/form-data');
   assert.ok(st.action.startsWith('/'));
   assert.ok(st.params && (st.params.url || st.params.text), 'share target takes a url or text');
+  const files = [].concat(st.params.files || []);
+  assert.ok(files.some((f) => f.name === 'screenshots' && [].concat(f.accept).some((a) => /^image\//.test(a))), 'share target takes pictures in the field "screenshots"');
   const sizes = [];
   for (const icon of m.icons) {
     const file = path.join(root, 'public', icon.src);

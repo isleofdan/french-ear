@@ -23,8 +23,19 @@
       </div>
       <div class="status" id="status" hidden></div>
       <section class="panel stack nolines" id="nolines" hidden aria-labelledby="nolines-head">
-        <p class="nolines-say" id="nolines-head">YouTube wouldn't give me the captions. <span class="on-computer">On a laptop, open the video, tap <b>...more</b> under it, tap <b>Show transcript</b>, then press <b>Ctrl+A</b> and <b>Ctrl+C</b> to copy the whole page, and paste it here. I'll pick the transcript out of it.</span><span class="on-phone">On a phone or tablet, open the video in the YouTube app, tap the title to expand the description, tap <b>Show transcript</b>, then try to select the transcript text and copy it. If the app won't let you copy, take a screenshot of the transcript and send it to Dan.</span></p>
+        <p class="nolines-say" id="nolines-head">YouTube wouldn't give me the captions. <span class="on-computer">On a laptop, open the video, tap <b>...more</b> under it, tap <b>Show transcript</b>, then press <b>Ctrl+A</b> and <b>Ctrl+C</b> to copy the whole page, and paste it here. I'll pick the transcript out of it.</span><span class="on-phone">On a phone or tablet, open the video in the YouTube app, tap the title, tap <b>Show transcript</b>, take a screenshot of the transcript, scroll and take another until you have it all, then add the screenshots here.</span></p>
         <p class="note" id="nolines-why"></p>
+        <form class="stack pics" id="pics-form">
+          <label class="pick pick-plain" id="pick">
+            <input type="file" id="pictures" name="screenshots" accept="image/*" multiple>
+            <span id="pick-text">Add screenshots of the transcript</span>
+          </label>
+          <div class="note picked" id="picked" hidden></div>
+          <div class="msg" id="pics-msg" role="alert"></div>
+          <div class="controls" id="pics-controls" hidden>
+            <button class="primary" type="submit" id="pics-go">Use these screenshots</button>
+          </div>
+        </form>
         <form class="stack" id="paste-form">
           <label for="paste">Paste the transcript here (from YouTube's Show transcript panel)</label>
           <textarea id="paste" name="transcript" rows="5" placeholder="0:00&#10;Bonjour à tous…" required></textarea>
@@ -38,19 +49,33 @@
       <section class="panel stack readback" id="readback" hidden aria-labelledby="readback-head">
         <h2 class="title" id="readback-head" style="font-size:18px">Here's how I read your paste</h2>
         <ol class="readback-lines" id="readback-lines"></ol>
+        <p class="note" id="readback-pictures" hidden></p>
         <p class="note" id="readback-note"></p>
       </section>
       <details class="panel repaste" id="repaste" hidden>
-        <summary>Paste the transcript again</summary>
-        <form class="stack" id="repaste-form">
-          <p class="note"><span class="on-computer">On a laptop, open the video, tap <b>...more</b> under it, tap <b>Show transcript</b>, then press <b>Ctrl+A</b> and <b>Ctrl+C</b> to copy the whole page, and paste it here.</span><span class="on-phone">On a phone or tablet, open the video in the YouTube app, tap the title to expand the description, tap <b>Show transcript</b>, then try to select the transcript text and copy it. If the app won't let you copy, take a screenshot of the transcript and send it to Dan.</span> The new paste replaces this video's lines. Lines you kept stay kept.</p>
-          <label for="repaste-text">Paste the transcript here (from YouTube's Show transcript panel)</label>
-          <textarea id="repaste-text" name="transcript" rows="4" placeholder="0:00&#10;Bonjour à tous…" required></textarea>
-          <div class="msg" id="repaste-msg" role="alert"></div>
-          <div class="controls">
-            <button class="primary" type="submit" id="repaste-go">Use this transcript</button>
-          </div>
-        </form>
+        <summary>Add the transcript again</summary>
+        <div class="stack repaste-body">
+          <p class="note"><span class="on-computer">On a laptop, open the video, tap <b>...more</b> under it, tap <b>Show transcript</b>, then press <b>Ctrl+A</b> and <b>Ctrl+C</b> to copy the whole page, and paste it here.</span><span class="on-phone">On a phone or tablet, open the video in the YouTube app, tap the title, tap <b>Show transcript</b>, take a screenshot of the transcript, scroll and take another until you have it all, then add the screenshots here.</span> New screenshots or a new paste replace this video's lines. Lines you kept stay kept.</p>
+          <form class="stack pics" id="re-pics-form">
+            <label class="pick pick-plain" id="re-pick">
+              <input type="file" id="re-pictures" name="screenshots" accept="image/*" multiple>
+              <span id="re-pick-text">Add screenshots of the transcript</span>
+            </label>
+            <div class="note picked" id="re-picked" hidden></div>
+            <div class="msg" id="re-pics-msg" role="alert"></div>
+            <div class="controls" id="re-pics-controls" hidden>
+              <button class="primary" type="submit" id="re-pics-go">Use these screenshots</button>
+            </div>
+          </form>
+          <form class="stack" id="repaste-form">
+            <label for="repaste-text">Paste the transcript here (from YouTube's Show transcript panel)</label>
+            <textarea id="repaste-text" name="transcript" rows="4" placeholder="0:00&#10;Bonjour à tous…" required></textarea>
+            <div class="msg" id="repaste-msg" role="alert"></div>
+            <div class="controls">
+              <button class="primary" type="submit" id="repaste-go">Use this transcript</button>
+            </div>
+          </form>
+        </div>
       </details>
       <div class="modes" id="modes" role="group" aria-label="How to watch">
         <button type="button" data-mode="follow" aria-pressed="true">Follow along</button>
