@@ -354,6 +354,92 @@ const PICS = join(root, 'test', 'fixtures', 'pictures');
   await ctx.close();
 }
 
+// --- photos from the TV, phone light, with the checks ------------------------
+// Moments 1–3: an English subtitle with both notes, a French subtitle, and a
+// photo with no subtitle (drawn TV photos in test/fixtures/pictures/; the
+// stand-in model reads them from answers.json).
+async function momentSettled(page, id) {
+  for (let i = 0; i < 100; i++) {
+    const m = await (await page.request.get(`${base}/api/moments/${id}`)).json();
+    if (m.saved && !m.busy && !['waiting', 'working'].includes(m.work_status)) return m;
+    await wait(100);
+  }
+  throw new Error(`moment ${id} never settled`);
+}
+{
+  const { ctx, errors } = await context('phone', 'light');
+  const page = await ctx.newPage();
+  await login(page);
+  check('home has a third way in, "Add a photo from the TV"', (await page.locator('#photo-pick').innerText()).trim() === 'Add a photo from the TV');
+  await page.setInputFiles('#photo', join(PICS, 'tv-english.png'));
+  await page.waitForURL(/\/moment\?id=1&new=1/, { timeout: 15000 });
+  await page.waitForFunction(() => document.getElementById('subtitle') && document.getElementById('subtitle').value.length > 0, null, { timeout: 15000 });
+  check('the after-photo screen shows the subtitle as read', (await page.inputValue('#subtitle')) === "There's something wrong.");
+  check('with the photo small at the top', await page.locator('.photo-head img.moment-thumb').evaluate((i) => i.complete && i.naturalWidth > 0));
+  const labels = await page.locator('.after-photo label').allInnerTexts();
+  check('and only the subtitle, the two boxes and one button', labels.join(' | ') === 'The subtitle | What it sounded like | What’s happening'
+    && (await page.locator('.after-photo button').allInnerTexts()).join('|') === 'Save for later', labels.join(' | '));
+  await shot(page, 'moment-after-photo-phone-light');
+  await page.fill('#heard', 'ya kelk shoz');
+  await page.fill('#scene', 'The car will not start');
+  await page.click('.after-photo button');
+  await page.waitForSelector('.saved-note');
+  check('"Save for later" says it is saved', /Saved for later\./.test(await page.locator('.saved-note').innerText()));
+  await page.waitForSelector('.said-big mark.tint', { timeout: 20000 });
+  check('the French as said comes in, tinted', (await page.locator('.said-big').innerText()) === 'Y a quelque chose qui va pas.');
+  check('with the sure word in plain English', /^fairly sure/.test(await page.locator('.said-big + .note').innerText()));
+  const named = await page.locator('.why').innerText();
+  check('and its patterns named', /il y a → y a/.test(named) && /ne is dropped/.test(named), named.slice(0, 80));
+  await page.click('.controls [aria-pressed]');
+  await page.waitForSelector('.controls [aria-pressed="true"]');
+  check('Keep keeps the line', true);
+  await page.goto(`${base}/moment?id=1`);
+  await page.waitForSelector('.said-big');
+  await shot(page, 'moment-open-phone-light');
+
+  // a French subtitle: the ordinary "as said" pass
+  await page.goto(`${base}/`);
+  await page.setInputFiles('#photo', join(PICS, 'tv-french.png'));
+  await page.waitForURL(/\/moment\?id=2&new=1/, { timeout: 15000 });
+  await page.waitForFunction(() => document.getElementById('subtitle').value.length > 0, null, { timeout: 15000 });
+  await page.click('.after-photo button');
+  const fr = await momentSettled(page, 2);
+  check('a French subtitle is worked out by the "as said" pass', fr.work_status === 'worked' && fr.line.spoken === "Chais pas c'que tu veux dire." && fr.sure === 'high');
+
+  // no subtitle: saved with the note, no line
+  await page.goto(`${base}/`);
+  await page.setInputFiles('#photo', join(PICS, 'tv-none.png'));
+  await page.waitForURL(/\/moment\?id=3&new=1/, { timeout: 15000 });
+  await page.waitForFunction(() => /No subtitle in this photo/.test(document.getElementById('subtitle').placeholder), null, { timeout: 15000 });
+  check('a photo with no subtitle says so', true);
+  await page.fill('#scene', 'Two women arguing in a kitchen');
+  await page.click('.after-photo button');
+  const none = await momentSettled(page, 3);
+  check('and is saved with the note and no line', none.work_status === 'nothing' && none.line === null && none.scene_note === 'Two women arguing in a kitchen');
+
+  await page.goto(`${base}/tv`);
+  await page.waitForSelector('.moment-item');
+  const items = await page.locator('.moment-item').allInnerTexts();
+  check('"From the TV" lists them newest first', items.length === 3 && /No subtitle in this photo/.test(items[0]) && /There's something wrong\./.test(items[2]), items.map((t) => t.replace(/\s+/g, ' ')).join(' | '));
+  check('each with the French as said and the sure word', /Y a quelque chose qui va pas\.\s+fairly sure/.test(items[2]) && /sure/.test(items[1]));
+  await shot(page, 'tv-list-phone-light');
+  const pats = await (await page.request.get(`${base}/api/patterns`)).json();
+  const shaky = pats.patterns.filter((p) => p.state === 'shaky').map((p) => p.id);
+  check('the patterns of the photos are now shaky', shaky.includes('il-y-a') && shaky.includes('je-ch'), shaky.join(', '));
+  await page.goto(`${base}/kept`);
+  await page.waitForSelector('.kept-item');
+  check('the kept line from the TV is on the kept page', /From the TV/.test(await page.locator('.kept-item').first().innerText()));
+  await page.locator('.kept-item').first().click();
+  await page.waitForURL(/\/moment\?id=1$/);
+  check('and opens the photo', true);
+  await page.goto(`${base}/`);
+  await page.waitForSelector('#tv-section:not([hidden]) .moment-item');
+  check('home shows the last three photos under the videos', (await page.locator('#moments .moment-item').count()) === 3);
+  check('the thumbnails are drawn', await page.locator('#moments img').first().evaluate((i) => i.complete && i.naturalWidth > 0));
+  check('no script errors on the TV pass', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
 // --- the rest: every screen, both viewports, both grounds --------------------
 const videoId = 1;
 for (const view of Object.keys(VIEWS)) {
@@ -438,6 +524,27 @@ for (const view of Object.keys(VIEWS)) {
       await wait(200);
       await shot(page, `${name}-${tag}`);
     }
+    // photos from the TV: the way in, the after-photo screen, the list, one open
+    await page.goto(`${base}/`);
+    await page.waitForSelector('#tv-section:not([hidden])');
+    await page.locator('#photo-pick').scrollIntoViewIfNeeded();
+    await wait(100);
+    await shot(page, `home-tv-photo-${tag}`);
+    await page.locator('#tv-section').scrollIntoViewIfNeeded();
+    await wait(200);
+    await shot(page, `home-tv-list-${tag}`);
+    await page.setInputFiles('#photo', join(PICS, 'tv-english.png'));
+    await page.waitForURL(/\/moment\?id=\d+&new=1/, { timeout: 15000 });
+    await page.waitForFunction(() => document.getElementById('subtitle').value.length > 0, null, { timeout: 15000 });
+    await shot(page, `moment-after-photo-${tag}`);
+    await page.goto(`${base}/tv`);
+    await page.waitForSelector('.moment-item img');
+    await wait(200);
+    await shot(page, `tv-list-${tag}`);
+    await page.goto(`${base}/moment?id=1`);
+    await page.waitForSelector('.said-big');
+    await wait(200);
+    await shot(page, `moment-open-${tag}`);
     // contrast of the tint and the orange tint against their text
     await page.goto(`${base}/watch?id=${videoId}`);
     await page.waitForSelector('#lines mark.tint');

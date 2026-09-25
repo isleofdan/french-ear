@@ -1,6 +1,6 @@
 'use strict';
 (function () {
-  const { api, sendPictures, picturePicker, el, topBar } = window.FE;
+  const { api, sendPictures, picturePicker, el, topBar, sendPhoto, momentItem, shakySet } = window.FE;
   document.getElementById('top').replaceWith(topBar('/'));
 
   const linkForm = document.getElementById('link-form');
@@ -67,6 +67,25 @@
     }
   });
 
+  // "Add a photo from the TV": one photo, sent at once; the after-photo page
+  // takes his notes while the subtitle is read.
+  const photo = document.getElementById('photo');
+  const photoText = document.getElementById('photo-text');
+  const photoMsg = document.getElementById('photo-msg');
+  photo.addEventListener('change', async () => {
+    if (!photo.files.length) return;
+    photoMsg.textContent = '';
+    photoText.textContent = 'Sending the photo…';
+    try {
+      const m = await sendPhoto(photo.files[0]);
+      location.href = '/moment?id=' + m.id + '&new=1';
+    } catch (err) {
+      photoMsg.textContent = err.message;
+      photoText.textContent = 'Add a photo from the TV';
+      photo.value = '';
+    }
+  });
+
   const typedForm = document.getElementById('typed-form');
   const typed = document.getElementById('typed');
   const typedMsg = document.getElementById('typed-msg');
@@ -86,7 +105,13 @@
     }
   });
 
-  api('GET', '/api/home').then((home) => {
+  Promise.all([api('GET', '/api/home'), api('GET', '/api/patterns')]).then(([home, pats]) => {
+    if (home.moments && home.moments.length) {
+      const shaky = shakySet(pats);
+      const box = document.getElementById('moments');
+      for (const m of home.moments) box.appendChild(momentItem(m, shaky));
+      document.getElementById('tv-section').hidden = false;
+    }
     document.getElementById('n-solid').textContent = home.totals.solid;
     document.getElementById('n-shaky').textContent = home.totals.shaky;
     document.getElementById('n-notmet').textContent = home.totals['not-met'];

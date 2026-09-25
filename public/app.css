@@ -257,3 +257,18 @@ mark.tint.shaky { background: var(--shaky-bg); color: var(--shaky-fg); }
 /* --- kept page --- */
 .kept-item { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); text-decoration: none; color: var(--text); }
 .kept-item .sub { font-size: 13px; color: var(--muted); }
+
+/* --- photos from the TV --- */
+.moment-item { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); text-decoration: none; color: var(--text); }
+.moment-thumb { width: 96px; height: 64px; object-fit: cover; border-radius: 8px; background: var(--notmet-bg); flex-shrink: 0; }
+.moment-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.moment-text .said { font-size: 18px; }
+.moment-text .sub { font-size: 13px; color: var(--muted); }
+.photo-head { display: flex; gap: 12px; align-items: center; }
+.moment-photo { width: 100%; max-height: 50vh; object-fit: contain; border-radius: 12px; background: #000000; }
+.subtitle-text { font-size: 18px; color: var(--text); }
+.note-text { font-size: 16px; color: var(--body); }
+.said-big { font-size: 28px; font-weight: 500; }
+.after-photo .primary { margin-top: 6px; min-height: 56px; font-size: 17px; }
+.status-box { gap: 8px; }
+.status-box .primary { align-self: flex-start; }

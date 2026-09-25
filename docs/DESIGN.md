@@ -22,8 +22,12 @@ third-party analytics, no shared register.
 - **YouTube is where the app lives.** He pastes (or, on Android, shares) a
   video; the app shows its lines as written and as said while the video
   plays in YouTube's own player. No video or audio is ever copied.
-- **The TV is where questions get collected** — a photo of the screen, paused
-  on a line that got past him. That path is session two.
+- **The TV is where questions get collected** — a photo of the screen at the
+  moment a line got past him, usually with English subtitles on it. The
+  after-photo screen asks for nothing but a correction of the subtitle and
+  two optional notes ("What it sounded like", "What's happening"), then
+  "Save for later": he is watching with someone and will not stop to study.
+  The French is worked out later and waits under "From the TV".
 - **Practice comes from real clips of what he watched** — his kept lines are
   its raw material. Session three.
 
@@ -42,6 +46,9 @@ Every event names one pattern and one line. The kinds:
 - **watched clean** — in Ear first a line played through and no "What was
   that?" covered it.
 - **keep** — he kept a line; one for each pattern in it.
+- **got past me** from a photo — a photo from the TV, once worked out,
+  records one "got past me" for each pattern in its line, once per photo. A
+  photo worked out as "a guess" records nothing.
 
 Watching in Follow along without tapping records nothing. The typed-line box
 records nothing except a keep.
