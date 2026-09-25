@@ -117,4 +117,5 @@ downloading any video or audio.
 - **Checked against mocks only** until Dan's phone round: the picture
   fixtures are synthetic (`scripts/make-picture-fixtures.mjs`), no real
   screenshot from the YouTube app was attached.
+- **Live, checked by Dan (25 Sep):** two phone screenshots of the Easy French video read right ("Bonjour les amis et bienvenue dans un nouvel épisode d'iz French." first; 4 and 6 lines, 1 overlap); tinted lines under the player. French ear, installed from Chrome's menu, is not in the YouTube app's share list: a finding for the next session.
 - Report: `docs/reports/french-ear-four-report.md`.
