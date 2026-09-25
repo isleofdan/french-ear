@@ -1,5 +1,5 @@
 {
-  "_about": "What a model would answer for each picture fixture (the mock sends it back), and the lines the app must make of it. Synthetic pictures: made by scripts/make-picture-fixtures.mjs.",
+  "_about": "What a model would answer for each picture fixture (the mock sends it back), and the lines the app must make of it. Which pictures are real and which are drawn: README.md beside this file.",
   "shot-1.png": {
     "answer": {
       "transcript": true,
@@ -102,6 +102,27 @@
     "answer": {
       "transcript": false,
       "lines": []
+    }
+  },
+  "tv-english.png": {
+    "answer": {
+      "subtitle": true,
+      "text": "There's something wrong.",
+      "language": "en"
+    }
+  },
+  "tv-french.png": {
+    "answer": {
+      "subtitle": true,
+      "text": "Je ne sais pas ce que tu veux dire.",
+      "language": "fr"
+    }
+  },
+  "tv-none.png": {
+    "answer": {
+      "subtitle": false,
+      "text": "",
+      "language": null
     }
   }
 }
