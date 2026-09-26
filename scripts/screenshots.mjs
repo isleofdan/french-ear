@@ -497,11 +497,12 @@ async function pick(page, clip, right) {
   await shot(page, 'drill-hidden-phone-light');
   await pick(page, clip, true);
   await page.waitForSelector('#card .verdict');
+  await wait(700);
   check('a right answer says "Knew it."', (await page.locator('#card .verdict').innerText()) === 'Knew it.');
   check('with the line as said, tinted', (await page.locator('#card .drill-line mark.tint').count()) > 0);
-  check('and the pattern named with its explanation', /je sais → chais, je suis → chuis — The e of je drops/.test(await page.locator('#card .why').innerText()));
+  check('and the pattern named with its explanation', /je sais → chais, je suis → chuis[^—\n]*— The e of je drops/.test(await page.locator('#card .why').innerText()));
   await shot(page, 'drill-right-phone-light');
-  const total = Number((await page.locator('#card .label').first().innerText()).match(/of (\d+)/)[1]);
+  const total = Number((await page.locator('#card .label').first().textContent()).match(/of (\d+)/)[1]);
   check('a round is at most ten clips', total >= 1 && total <= 10, `${total}`);
   const seen = [clip.id];
   let wrongClip = null;
@@ -533,7 +534,7 @@ async function pick(page, clip, right) {
   check('a right answer counts as heard in a drill', after.patterns.find((p) => p.id === 'je-ch').counts.drill_clean >= 1);
   await page.click('#card button.primary');
   await page.waitForSelector('#card .hear');
-  check('"again" starts a new round', /^clip 1 of/.test(await page.locator('#card .label').first().innerText()));
+  check('"again" starts a new round', /^clip 1 of/.test(await page.locator('#card .label').first().textContent()));
 
   // Mix: "What was said?", then "Which pattern?"
   await page.goto(`${base}/practice`);
@@ -588,6 +589,38 @@ for (const view of Object.keys(VIEWS)) {
     await page.waitForSelector('#revealed .line');
     await shot(page, `watch-ear-first-revealed-${tag}`);
     await page.click('#modes [data-mode="follow"]');
+    // Practice: the home, a clip with the line hidden, a right and a wrong
+    // answer, the end screen
+    await page.goto(`${base}/practice`);
+    await page.waitForSelector('.drill-entry');
+    await shot(page, `practice-home-${tag}`);
+    await page.goto(`${base}/practice?p=je-ch`);
+    await page.waitForSelector('#card .hear');
+    await page.click('#card .hear');
+    await page.waitForSelector('#card .choices');
+    let clip = await playingClip(page, 'je-ch');
+    await page.evaluate((c) => { window.__t = c.end_s + 0.1; }, clip);
+    await wait(300);
+    await shot(page, `drill-hidden-${tag}`);
+    await pick(page, clip, true);
+    await page.waitForSelector('#card .verdict');
+    await wait(700);
+    await shot(page, `drill-right-${tag}`);
+    const total = Number((await page.locator('#card .label').first().textContent()).match(/of (\d+)/)[1]);
+    for (let k = 1; k < total; k++) {
+      await page.click('#card button.primary:not(.hear)');
+      await page.waitForFunction((n) => document.querySelector('#card .label').textContent.startsWith(`clip ${n} `), k + 1);
+      clip = await playingClip(page, 'je-ch');
+      await page.evaluate((c) => { window.__t = c.end_s + 0.1; }, clip);
+      await pick(page, clip, k !== 1);
+      await page.waitForSelector('#card .verdict');
+      if (k === 1) { await wait(700); await shot(page, `drill-wrong-${tag}`); }
+    }
+    await page.click('#card button.primary:not(.hear)');
+    await page.waitForSelector('#card h2.title');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await wait(100);
+    await shot(page, `drill-end-${tag}`);
     for (const p of ['kept', 'patterns']) {
       await page.goto(`${base}/${p}`);
       await page.waitForSelector(p === 'kept' ? '.kept-item' : '.pattern');

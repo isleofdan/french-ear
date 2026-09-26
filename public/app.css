@@ -284,6 +284,7 @@ mark.tint.shaky { background: var(--shaky-bg); color: var(--shaky-fg); }
 .drill-entry.off .name { color: var(--muted); font-weight: 500; }
 .drill { display: grid; gap: 16px; max-width: 1180px; }
 .drill-card { gap: 14px; }
+.drill-card, .drill-card .verdict, .drill-card .drill-line { scroll-margin-top: calc(56.25vw + 24px); scroll-margin-bottom: 96px; }
 .drill-card .row-head { flex-wrap: wrap; }
 .hear { align-self: flex-start; min-width: 160px; }
 .primary.hear { min-height: 56px; font-size: 18px; }
@@ -306,4 +307,8 @@ a.button-link { display: inline-flex; align-items: center; text-decoration: none
   .drill { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
   .drill .watch-head { grid-column: 1 / -1; }
   .drill .player-wrap { position: sticky; top: 12px; }
+}
+@media (max-width: 480px) {
+  .top nav { gap: 0; }
+  .top nav a { padding: 8px 7px; font-size: 13px; }
 }

@@ -170,29 +170,34 @@
       hear, ask, after, next,
     );
 
-    // "Which pattern?" — Mix only, after the line is shown; names the
-    // patterns once answered. Records nothing.
+    // "Which pattern?" — Mix only, after the line is shown: one of the
+    // line's own patterns among four. Names the patterns once answered.
+    // Records nothing.
     function whichPattern() {
       const ids = item.pattern_choices;
       const labels = ids.map((id) => (byId[id] ? byId[id].name : id));
-      const ownIdx = ids.map((id, i) => (clip.patterns.includes(id) ? i : -1)).filter((i) => i >= 0);
-      const row = choiceRow(labels, ownIdx[0], (i) => {
-        const right = ownIdx.includes(i);
-        // every name that is in the line shows as right
-        row.querySelectorAll('.choice').forEach((b, k) => { if (ownIdx.includes(k)) { b.classList.add('right'); b.classList.remove('wrong'); } });
-        after.append(verdict(right, right ? 'Yes, that one.' : 'Not that one.'), named(clip));
+      const own = ids.findIndex((id) => clip.patterns.includes(id));
+      after.append(el('h2', { class: 'title q', text: 'Which pattern?' }), choiceRow(labels, own, (i) => {
+        const v = verdict(i === own, i === own ? 'Yes, that one.' : 'Not that one.');
+        after.append(v, named(clip));
         next.hidden = false;
-      });
-      after.append(el('h2', { class: 'title q', text: 'Which pattern?' }), row);
+        show(v);
+      }));
+    }
+
+    // Brings what just appeared into view, under the player on a phone.
+    function show(node) {
+      try { node.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) { /* old browser */ }
     }
 
     function reveal(right) {
-      if (right !== null) {
-        after.append(verdict(right, right ? 'Knew it.' : 'Got past me.'));
-      }
-      after.append(asSaid(clip));
+      const v = right !== null ? verdict(right, right ? 'Knew it.' : 'Got past me.') : null;
+      if (v) after.append(v);
+      const line = asSaid(clip);
+      after.append(line);
       if (item.pattern_choices) whichPattern();
       else { after.append(named(clip)); next.hidden = false; }
+      show(line);
     }
 
     if (item.choices) {
@@ -210,6 +215,7 @@
       ask.append(el('button', { type: 'button', class: 'secondary', text: 'show the line', onclick: (e) => { e.target.remove(); reveal(null); } }));
     }
     if (autoplay) {
+      show(card);
       play(clip);
       heard.first = false; hear.textContent = 'play again'; hear.className = 'secondary hear'; ask.hidden = false;
     }

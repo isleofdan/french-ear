@@ -119,14 +119,14 @@ test('with fewer than three lines to draw from, "What was said?" is left out', (
   assert.ok(mix.every((it) => it.choices === null && it.pattern_choices.length === 4));
 });
 
-test('Mix: four pattern names, the line\'s own among them; shaky clips drawn more often', () => {
+test('Mix: four pattern names, exactly one of them the line\'s own; shaky clips drawn more often', () => {
   const clips = SENTENCES.slice(0, 20).map((w, i) => clip(i + 1, w, i < 10 ? ['je-ch', 'ne-dropped'] : ['il-y-a']));
   const round = makeRound({ clips, pool: clips, mix: true, rand: seeded(5) });
   for (const it of round) {
     assert.equal(it.pattern_choices.length, 4);
     assert.equal(new Set(it.pattern_choices).size, 4);
     assert.ok(it.pattern_choices.every((id) => IDS.includes(id)));
-    assert.ok(it.clip.patterns.every((p) => it.pattern_choices.includes(p)));
+    assert.equal(it.pattern_choices.filter((p) => it.clip.patterns.includes(p)).length, 1);
   }
   let shakyFirst = 0;
   for (let seed = 1; seed <= 200; seed++) {

@@ -19,6 +19,7 @@
     if (c.got_past_me) bits.push(c.got_past_me + ' got past me');
     if (c.keep) bits.push(c.keep + ' kept');
     if (c.watched_clean) bits.push('heard clean in ' + c.watched_clean + (c.watched_clean === 1 ? ' line' : ' lines'));
+    if (c.drill_clean) bits.push('knew it in ' + c.drill_clean + (c.drill_clean === 1 ? ' drill line' : ' drill lines'));
     if (c.looked) bits.push(c.looked + ' looked at');
     return bits.join(' · ');
   }
