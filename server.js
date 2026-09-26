@@ -19,7 +19,8 @@ const { parseTranscript } = require('./lib/transcript');
 const { joinFragments } = require('./lib/sentences');
 const pictures = require('./lib/pictures');
 const tv = require('./lib/tv');
-const { PATTERNS } = require('./lib/patterns');
+const drills = require('./lib/drills');
+const { PATTERNS, BY_ID } = require('./lib/patterns');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readForm, serveStatic } = require('./lib/http');
 
@@ -340,12 +341,58 @@ route('POST', /^\/api\/moments\/(?<id>\d+)\/retry$/, (req, res, { id }) => {
   return sendJson(res, 202, momentOut(db.getMoment(id)));
 });
 
+// --- drills -----------------------------------------------------------------
+
+// The drills home: the twenty patterns in the patterns page's order (shaky
+// first), each with its state and how many clips carry it; and how many
+// clips there are in all (Mix).
+route('GET', /^\/api\/drills$/, (req, res) => {
+  const counts = db.clipCounts();
+  const { patterns } = tally.states(db.allEvents());
+  return sendJson(res, 200, {
+    patterns: patterns.map((p) => ({ id: p.id, name: p.name, state: p.state, clips: counts[p.id] || 0 })),
+    mix: db.clips().length,
+  });
+});
+
+// Every clip of one pattern, newest video first.
+route('GET', /^\/api\/drills\/clips\/(?<pattern>[a-z-]+)$/, (req, res, { pattern }) => {
+  if (!BY_ID[pattern]) throw new db.AppError(404, `No pattern ${pattern}.`);
+  return sendJson(res, 200, { pattern, items: db.clips(pattern) });
+});
+
+// A round: ?pattern=<id> for one pattern, ?pattern=mix for every pattern.
+route('GET', /^\/api\/drills\/round$/, (req, res, groups, url) => {
+  const which = url.searchParams.get('pattern') || '';
+  const mix = which === 'mix';
+  if (!mix && !BY_ID[which]) throw new db.AppError(404, `No pattern ${which}.`);
+  const items = drills.makeRound({
+    clips: db.clips(mix ? null : which),
+    pool: db.videoLineTexts(),
+    mix,
+    shaky: new Set(tally.states(db.allEvents()).patterns.filter((p) => p.state === 'shaky').map((p) => p.id)),
+  });
+  return sendJson(res, 200, { pattern: mix ? 'mix' : which, items });
+});
+
+// { line_id, right } -> his answer to "What was said?". Right records one
+// drill_clean per pattern in the line; wrong one got_past_me per pattern (he
+// heard it and did not catch it). "Which pattern?" records nothing.
+route('POST', /^\/api\/drills\/answer$/, async (req, res) => {
+  const body = await readJson(req);
+  if (typeof body.right !== 'boolean') throw new db.AppError(400, 'right must be true or false.');
+  const line = db.getLine(body.line_id);
+  const kind = body.right ? 'drill_clean' : 'got_past_me';
+  for (const p of line.patterns) db.addEventRow(kind, p, line.id);
+  return sendJson(res, 200, { recorded: line.patterns.length, kind });
+});
+
 route('GET', /^\/api\/pattern-list$/, (req, res) => sendJson(res, 200, { items: PATTERNS }));
 
 // --- serving ----------------------------------------------------------------
 
 const OPEN_FILES = new Set(['/manifest.webmanifest', '/sw.js', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon.svg', '/app.css']);
-const PAGES = { '/': '/index.html', '/watch': '/watch.html', '/kept': '/kept.html', '/patterns': '/patterns.html', '/tv': '/tv.html', '/moment': '/moment.html' };
+const PAGES = { '/': '/index.html', '/watch': '/watch.html', '/kept': '/kept.html', '/patterns': '/patterns.html', '/tv': '/tv.html', '/moment': '/moment.html', '/practice': '/practice.html' };
 
 async function handle(req, res) {
   const url = new URL(req.url, 'http://x');

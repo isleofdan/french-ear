@@ -43,3 +43,26 @@ test('shaky first, then seen, solid, not met yet; totals add to twenty', () => {
   assert.equal(patterns[3].state, 'not-met');
   assert.equal(totals.shaky + totals.seen + totals.solid + totals['not-met'], 20);
 });
+
+// --- drills (Practice) -------------------------------------------------------
+
+test('ten lines right in drills, no got past me: solid', () => {
+  const events = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((line) => ev('drill_clean', 'il-y-a', line));
+  assert.equal(stateOf(events, 'il-y-a'), 'solid');
+});
+
+test('nine lines right in drills: not solid, unless Ear first is clean too', () => {
+  const events = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((line) => ev('drill_clean', 'tu-t', line));
+  assert.equal(stateOf(events, 'tu-t'), 'seen');
+  events.push(ev('drill_clean', 'tu-t', 9), ev('drill_clean', 'tu-t', 1));
+  assert.equal(stateOf(events, 'tu-t'), 'seen', 'the same line right again is still nine lines');
+  for (const line of [21, 22, 23, 24, 25]) events.push(ev('watched_clean', 'tu-t', line));
+  assert.equal(stateOf(events, 'tu-t'), 'solid', 'five clean Ear-first lines make it solid on their own');
+});
+
+test('a wrong drill answer (a got past me) makes it shaky, even after ten right', () => {
+  const events = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((line) => ev('drill_clean', 'je-ch', line));
+  events.push(ev('got_past_me', 'je-ch', 11));
+  assert.equal(stateOf(events, 'je-ch'), 'shaky');
+  assert.equal(states(events).patterns.find((p) => p.id === 'je-ch').counts.drill_clean, 10);
+});

@@ -54,6 +54,7 @@ window.YT = { Player: function (id, opts) {
   el.style.cssText = 'display:flex;align-items:center;justify-content:center;color:#cfc6b8;font:14px system-ui;background:#111';
   el.textContent = 'YouTube player (stand-in for screenshots)';
   if (opts.playerVars && opts.playerVars.start) window.__t = opts.playerVars.start;
+  window.__vid = opts.videoId;
   var self = this;
   setTimeout(function () { opts.events.onReady({ target: self }); }, 10);
 } };
@@ -63,6 +64,7 @@ YT.Player.prototype.seekTo = function (t) { window.__t = t; };
 YT.Player.prototype.playVideo = function () { window.__state = 1; };
 YT.Player.prototype.pauseVideo = function () { window.__state = 2; };
 YT.Player.prototype.unloadModule = function () {};
+YT.Player.prototype.loadVideoById = function (o) { window.__vid = o.videoId; window.__t = o.startSeconds || 0; window.__state = 1; };
 setTimeout(function () { window.onYouTubeIframeAPIReady(); }, 0);
 `;
 
@@ -440,6 +442,122 @@ async function momentSettled(page, id) {
   await ctx.close();
 }
 
+// --- practice: the drills, phone light, with the checks ---------------------
+// The clip playing is found from the stand-in player's video and clock, and
+// its written line from the clips route: the page itself never marks which
+// choice is right.
+async function playingClip(page, pattern) {
+  const { vid, t } = await page.evaluate(() => ({ vid: window.__vid, t: window.__t }));
+  const ids = pattern === 'mix' ? (await (await page.request.get(`${base}/api/drills`)).json()).patterns.filter((p) => p.clips).map((p) => p.id) : [pattern];
+  const all = [];
+  for (const id of ids) all.push(...(await (await page.request.get(`${base}/api/drills/clips/${id}`)).json()).items);
+  return all.find((c) => c.video.youtube_id === vid && Math.abs(c.start_s - t) < 0.01);
+}
+async function pick(page, clip, right) {
+  const labels = await page.locator('#card .choices').first().locator('.choice').allInnerTexts();
+  const i = labels.findIndex((l) => (l.trim() === clip.written.trim()) === right);
+  await page.locator('#card .choices').first().locator('.choice').nth(i).click();
+}
+{
+  const { ctx, errors } = await context('phone', 'light');
+  const page = await ctx.newPage();
+  await login(page);
+  check('"Practice" is in the top navigation', await page.isVisible('header.top nav a[href="/practice"]'));
+  await page.goto(`${base}/practice`);
+  await page.waitForSelector('.drill-entry');
+  const entries = await page.locator('.drill-entry').allInnerTexts();
+  check('the drills home lists Mix and the twenty patterns', entries.length === 21 && /^Mix/.test(entries[0]), `${entries.length}`);
+  const drills = await (await page.request.get(`${base}/api/drills`)).json();
+  const pats = await (await page.request.get(`${base}/api/patterns`)).json();
+  check('in the patterns page\'s order, shaky first', drills.patterns.map((p) => p.id).join() === pats.patterns.map((p) => p.id).join() && drills.patterns[0].state === 'shaky');
+  const jech = drills.patterns.find((p) => p.id === 'je-ch');
+  check('a pattern with clips says how many', entries.some((e) => new RegExp(`je sais → chais[\\s\\S]*${jech.clips} clips`).test(e)), `${jech.clips}`);
+  const none = drills.patterns.filter((p) => !p.clips);
+  check('a pattern with none says "no clips yet — watch more videos"', none.length > 0 && (await page.locator('.drill-entry.off').count()) === none.length
+    && /no clips yet — watch more videos/.test(await page.locator('.drill-entry.off').first().innerText()));
+  await shot(page, 'practice-home-phone-light');
+
+  await page.locator('a.drill-entry', { hasText: 'je sais → chais' }).click();
+  await page.waitForURL(/\/practice\?p=je-ch/);
+  await page.waitForSelector('#card .hear');
+  check('a round opens with the line hidden', !(await page.isVisible('#card .choices')) && (await page.locator('#card .said').count()) === 0);
+  await page.click('#card .hear');
+  await page.waitForSelector('#card .choices');
+  let clip = await playingClip(page, 'je-ch');
+  check('"hear it" plays the clip from its start', Boolean(clip) && (await page.evaluate(() => window.__state)) === 1, clip ? `${clip.video.youtube_id} at ${clip.start_s}` : 'no clip at the clock');
+  await page.evaluate((c) => { window.__t = c.end_s + 0.1; }, clip);
+  await page.waitForFunction(() => window.__state === 2);
+  check('and stops at its end', true);
+  await page.click('#card .hear');
+  check('"play again" plays the same few seconds', (await page.evaluate(() => window.__t)) === clip.start_s && (await page.evaluate(() => window.__state)) === 1);
+  await page.evaluate((c) => { window.__t = c.end_s + 0.1; }, clip);
+  const choices = await page.locator('#card .choice').allInnerTexts();
+  check('three written lines to choose from, the real one among them', choices.length === 3 && choices.includes(clip.written) && new Set(choices).size === 3, choices.join(' | '));
+  check('"Which pattern?" is not asked in a one-pattern round', (await page.locator('#card .q').allInnerTexts()).join() === 'What was said?');
+  await shot(page, 'drill-hidden-phone-light');
+  await pick(page, clip, true);
+  await page.waitForSelector('#card .verdict');
+  await wait(700);
+  check('a right answer says "Knew it."', (await page.locator('#card .verdict').innerText()) === 'Knew it.');
+  check('with the line as said, tinted', (await page.locator('#card .drill-line mark.tint').count()) > 0);
+  check('and the pattern named with its explanation', /je sais → chais, je suis → chuis[^—\n]*— The e of je drops/.test(await page.locator('#card .why').innerText()));
+  await shot(page, 'drill-right-phone-light');
+  const total = Number((await page.locator('#card .label').first().textContent()).match(/of (\d+)/)[1]);
+  check('a round is at most ten clips', total >= 1 && total <= 10, `${total}`);
+  const seen = [clip.id];
+  let wrongClip = null;
+  for (let k = 1; k < total; k++) {
+    await page.click('#card button.primary:not(.hear)');
+    await page.waitForFunction((n) => document.querySelector('#card .label').textContent.startsWith(`clip ${n} `), k + 1);
+    clip = await playingClip(page, 'je-ch');
+    check(`"next" plays the next clip (${k + 1})`, Boolean(clip) && (await page.evaluate(() => window.__state)) === 1);
+    seen.push(clip.id);
+    const right = k !== 1;
+    await pick(page, clip, right);
+    await page.waitForSelector('#card .verdict');
+    if (!right) {
+      wrongClip = clip;
+      check('a wrong answer says "Got past me."', (await page.locator('#card .verdict').innerText()) === 'Got past me.');
+      await shot(page, 'drill-wrong-phone-light');
+    }
+  }
+  check('no clip twice in the round', new Set(seen).size === seen.length, seen.join(','));
+  await page.click('#card button.primary:not(.hear)');
+  await page.waitForSelector('#card h2.title');
+  const head = await page.locator('#card h2.title').innerText();
+  check('the end screen counts the round', head === `${total} clips, ${total - 1} knew it, 1 got past me`, head);
+  const missedLink = await page.locator('#card .kept-item').getAttribute('href');
+  check('and lists the one that got past, opening its video at that line', missedLink === `/watch?id=${wrongClip.video.id}&line=${wrongClip.idx}`, missedLink);
+  await shot(page, 'drill-end-phone-light');
+  const after = await (await page.request.get(`${base}/api/patterns`)).json();
+  check('a wrong answer makes its patterns shaky', wrongClip.patterns.every((id) => after.patterns.find((p) => p.id === id).state === 'shaky'));
+  check('a right answer counts as heard in a drill', after.patterns.find((p) => p.id === 'je-ch').counts.drill_clean >= 1);
+  await page.click('#card button.primary');
+  await page.waitForSelector('#card .hear');
+  check('"again" starts a new round', /^clip 1 of/.test(await page.locator('#card .label').first().textContent()));
+
+  // Mix: "What was said?", then "Which pattern?"
+  await page.goto(`${base}/practice`);
+  await page.click('a.drill-entry.mix');
+  await page.waitForURL(/\/practice\?p=mix/);
+  await page.click('#card .hear');
+  await page.waitForSelector('#card .choices');
+  clip = await playingClip(page, 'mix');
+  await pick(page, clip, true);
+  await page.waitForSelector('#card .choices >> nth=1');
+  const qs = await page.locator('#card .q').allInnerTexts();
+  check('Mix asks "Which pattern?" after "What was said?"', qs.join(' | ') === 'What was said? | Which pattern?', qs.join(' | '));
+  check('with the patterns not yet named', (await page.locator('#card .why').count()) === 0);
+  const names = await page.locator('#card .choices').nth(1).locator('.choice').allInnerTexts();
+  check('four pattern names', names.length === 4 && new Set(names).size === 4, names.join(' | '));
+  await page.locator('#card .choices').nth(1).locator('.choice').first().click();
+  await page.waitForSelector('#card .why');
+  check('then the patterns are named', (await page.locator('#card .choices').nth(1).locator('.choice.right').count()) >= 1);
+  await shot(page, 'drill-mix-phone-light');
+  check('no script errors on the practice pass', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
 // --- the rest: every screen, both viewports, both grounds --------------------
 const videoId = 1;
 for (const view of Object.keys(VIEWS)) {
@@ -471,6 +589,38 @@ for (const view of Object.keys(VIEWS)) {
     await page.waitForSelector('#revealed .line');
     await shot(page, `watch-ear-first-revealed-${tag}`);
     await page.click('#modes [data-mode="follow"]');
+    // Practice: the home, a clip with the line hidden, a right and a wrong
+    // answer, the end screen
+    await page.goto(`${base}/practice`);
+    await page.waitForSelector('.drill-entry');
+    await shot(page, `practice-home-${tag}`);
+    await page.goto(`${base}/practice?p=je-ch`);
+    await page.waitForSelector('#card .hear');
+    await page.click('#card .hear');
+    await page.waitForSelector('#card .choices');
+    let clip = await playingClip(page, 'je-ch');
+    await page.evaluate((c) => { window.__t = c.end_s + 0.1; }, clip);
+    await wait(300);
+    await shot(page, `drill-hidden-${tag}`);
+    await pick(page, clip, true);
+    await page.waitForSelector('#card .verdict');
+    await wait(700);
+    await shot(page, `drill-right-${tag}`);
+    const total = Number((await page.locator('#card .label').first().textContent()).match(/of (\d+)/)[1]);
+    for (let k = 1; k < total; k++) {
+      await page.click('#card button.primary:not(.hear)');
+      await page.waitForFunction((n) => document.querySelector('#card .label').textContent.startsWith(`clip ${n} `), k + 1);
+      clip = await playingClip(page, 'je-ch');
+      await page.evaluate((c) => { window.__t = c.end_s + 0.1; }, clip);
+      await pick(page, clip, k !== 1);
+      await page.waitForSelector('#card .verdict');
+      if (k === 1) { await wait(700); await shot(page, `drill-wrong-${tag}`); }
+    }
+    await page.click('#card button.primary:not(.hear)');
+    await page.waitForSelector('#card h2.title');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await wait(100);
+    await shot(page, `drill-end-${tag}`);
     for (const p of ['kept', 'patterns']) {
       await page.goto(`${base}/${p}`);
       await page.waitForSelector(p === 'kept' ? '.kept-item' : '.pattern');

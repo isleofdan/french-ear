@@ -28,8 +28,13 @@ third-party analytics, no shared register.
   two optional notes ("What it sounded like", "What's happening"), then
   "Save for later": he is watching with someone and will not stop to study.
   The French is worked out later and waits under "From the TV".
-- **Practice comes from real clips of what he watched** — his kept lines are
-  its raw material. Session three.
+- **Practice comes from real clips of what he watched** — every line of his
+  YouTube videos with a start and an end time is a clip the player can
+  replay. "Practice" drills one pattern or all of them (Mix): hear the clip
+  with the line hidden, pick what was said from three of his own lines, then
+  see it as said and the pattern named. No synthetic audio, no invented
+  sentence, no model call. Typed lines and photos from the TV have no clip.
+  A round is forgotten when he leaves it: no scores by day, nothing due.
 
 ## Nothing pushes
 
@@ -49,6 +54,14 @@ Every event names one pattern and one line. The kinds:
 - **got past me** from a photo — a photo from the TV, once worked out,
   records one "got past me" for each pattern in its line, once per photo. A
   photo worked out as "a guess" records nothing.
+- **got past me** from a drill — on Practice he picked the wrong line for
+  "What was said?"; one for each pattern in the clip's line. It weighs the
+  same as "What was that?" in Ear first: he heard it and did not catch it.
+- **drill clean** — on Practice he picked the right line for "What was
+  said?"; one for each pattern in the clip's line.
+
+A wrong answer to "Which pattern?" (Mix) records nothing: naming the pattern
+is knowledge, not hearing.
 
 Watching in Follow along without tapping records nothing. The typed-line box
 records nothing except a keep.
@@ -61,16 +74,20 @@ The state of each pattern (the rule lives in code in one place,
 - **shaky** — one or more "got past me" or "keep" events for it among his
   last 200 events.
 - **solid** — it has appeared in at least five different lines he watched in
-  Ear first with no "What was that?" on them, and no "got past me" for it
-  among his last 200 events.
+  Ear first with no "What was that?" on them, *or* in ten different lines he
+  got right in a drill, and no "got past me" for it among his last 200
+  events. The two are not added together.
 - **seen** — anything else, shown between the two with the caption "seen, no
   trouble yet".
 
 Shaky is checked before solid. The patterns page shows shaky first, then
 seen, solid, not met yet.
 
-The tally weights evidence by how much it says: a photo from the show
-(session two) or a "got past me" counts above a drill answer (session three).
+The tally weights evidence by how much it says: a photo from the TV or a
+"got past me" counts above a right drill answer, which needs ten lines where
+Ear first needs five. A clip in a drill is a line he already watched, heard
+again on purpose and chosen from three: easier than catching it as it goes
+by.
 
 ## Look
 
@@ -85,4 +102,5 @@ written and as said side by side, with "In this episode" to the right.
 
 "as written", "as you'll hear it", "keep", "got past me", "solid", "shaky",
 "seen, no trouble yet", "not met yet", "Follow along", "Ear first", "What was
-that?". No invented names for features.
+that?", "Practice", "Mix", "hear it", "play again", "What was said?", "Which
+pattern?", "knew it". No invented names for features.

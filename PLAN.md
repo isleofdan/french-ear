@@ -119,3 +119,34 @@ downloading any video or audio.
   screenshot from the YouTube app was attached.
 - **Live, checked by Dan (25 Sep):** two phone screenshots of the Easy French video read right ("Bonjour les amis et bienvenue dans un nouvel épisode d'iz French." first; 4 and 6 lines, 1 overlap); tinted lines under the player. French ear, installed from Chrome's menu, is not in the YouTube app's share list: a finding for the next session.
 - Report: `docs/reports/french-ear-four-report.md`.
+
+## Close-out, session five
+
+Session five (photos from the TV, isleofdan/french-ear#8) merged without a
+close-out: no plan note, no report. Its pull request says it ran from the
+cloud and left three laptop-only items open (Dan's real screenshots as test
+pictures, the cost line from the Fly log, the Share diagnosis).
+
+## Close-out, drills (french-ear-drills, 26 Sep 2026)
+
+- **Practice** in the top bar. The drills home lists the twenty patterns in
+  the patterns page's order with their clip counts ("no clips yet — watch
+  more videos" when none), and Mix at the top.
+- **A clip** is a worked-out line of one of his YouTube videos with a start
+  and an end time (`db.clips`, `db.clipCounts`). Typed lines, photos from the
+  TV and transcripts pasted without timings have none.
+- **A round** (`lib/drills.js`): up to ten clips, shuffled, never the same
+  clip or the same words twice. Mix draws clips with a shaky pattern three
+  times as often. "hear it" plays the clip once with the line hidden; "play
+  again" as often as he likes; "What was said?" offers three written lines,
+  the real one and two of his own lines of about the same length. Fewer than
+  two to draw from: that question is left out. Mix then asks "Which
+  pattern?": one of the line's own patterns among four.
+- **The tally, extended once** (`lib/tally.js`, `docs/DESIGN.md`): a right
+  answer records `drill_clean`, a wrong one `got_past_me`, per pattern in the
+  line. Solid at five clean Ear-first lines or ten drill lines, and no "got
+  past me" among the last 200 events. "Which pattern?" records nothing.
+- Checks: `npm test` 90 (80 before); the browser run passes, with the drill
+  screens in `docs/screenshots/` (`practice-home-*`, `drill-hidden-*`,
+  `drill-right-*`, `drill-wrong-*`, `drill-end-*`, `drill-mix-phone-light`).
+- Report: `docs/reports/french-ear-drills-report.md`.

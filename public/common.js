@@ -84,7 +84,7 @@
   }
 
   function topBar(current) {
-    const links = [['/', 'Home'], ['/tv', 'From the TV'], ['/kept', 'Kept'], ['/patterns', 'Your patterns']];
+    const links = [['/', 'Home'], ['/tv', 'From the TV'], ['/kept', 'Kept'], ['/practice', 'Practice'], ['/patterns', 'Your patterns']];
     return el('header', { class: 'top' }, [
       el('a', { class: 'brand', href: '/' , text: 'French ear' }),
       el('nav', { 'aria-label': 'Pages' }, links.map(([href, name]) =>
