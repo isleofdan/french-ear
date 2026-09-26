@@ -19,7 +19,7 @@ const { parseTranscript } = require('./lib/transcript');
 const { joinFragments } = require('./lib/sentences');
 const pictures = require('./lib/pictures');
 const tv = require('./lib/tv');
-const { PATTERNS } = require('./lib/patterns');
+const { PATTERNS, BY_ID } = require('./lib/patterns');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readForm, serveStatic } = require('./lib/http');
 
@@ -338,6 +338,26 @@ route('POST', /^\/api\/moments\/(?<id>\d+)\/retry$/, (req, res, { id }) => {
   const m = db.getMoment(id);
   if (!m.saved) tv.readMoment(m.id); else tv.workMoment(m.id);
   return sendJson(res, 202, momentOut(db.getMoment(id)));
+});
+
+// --- drills -----------------------------------------------------------------
+
+// The drills home: the twenty patterns in the patterns page's order (shaky
+// first), each with its state and how many clips carry it; and how many
+// clips there are in all (Mix).
+route('GET', /^\/api\/drills$/, (req, res) => {
+  const counts = db.clipCounts();
+  const { patterns } = tally.states(db.allEvents());
+  return sendJson(res, 200, {
+    patterns: patterns.map((p) => ({ id: p.id, name: p.name, state: p.state, clips: counts[p.id] || 0 })),
+    mix: db.clips().length,
+  });
+});
+
+// Every clip of one pattern, newest video first.
+route('GET', /^\/api\/drills\/clips\/(?<pattern>[a-z-]+)$/, (req, res, { pattern }) => {
+  if (!BY_ID[pattern]) throw new db.AppError(404, `No pattern ${pattern}.`);
+  return sendJson(res, 200, { pattern, items: db.clips(pattern) });
 });
 
 route('GET', /^\/api\/pattern-list$/, (req, res) => sendJson(res, 200, { items: PATTERNS }));
