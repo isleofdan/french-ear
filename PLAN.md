@@ -190,6 +190,9 @@ pictures, the cost line from the Fly log, the Share diagnosis).
   YouTube calls unavailable is removed with its lines and tally events. A
   real episode (C2nA_FSX97M, Easy French 258, May 2026) read right: lines
   specific to the episode, in ordinary written French, timed.
+- **Live, after the guard (isleofdan/french-ear#13, publish run 15 green):**
+  the invented video is gone from "Last videos"; the Paris episode has 135
+  lines, all worked out; Practice → Mix reads 63 clips (5 before).
 - Checks: `npm test` 103 (92 before): the link read's checks with a
   false-rejection case (accents, both apostrophes, hours, fractions, a
   missing end), a bad line dropped, too few refused, refusals from OpenRouter
