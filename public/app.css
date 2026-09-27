@@ -303,6 +303,13 @@ mark.tint.shaky { background: var(--shaky-bg); color: var(--shaky-fg); }
 .drill-line .said-big { font-size: 24px; }
 .written-big { font-size: 17px; color: var(--text); }
 a.button-link { display: inline-flex; align-items: center; text-decoration: none; }
+/* the band over the lower part of the player while the line is hidden: some
+   channels burn their subtitles into the picture. Taps go through it to the
+   player. */
+.player > .cover { position: absolute; inset: auto 0 0 0; height: 35%; z-index: 2; margin: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); border-top: 1px solid var(--line-strong); color: var(--muted); font-size: 14px; pointer-events: none; }
+.player > .cover[hidden] { display: none; }
+.cover-switch { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; min-height: 32px; font-size: 14px; color: var(--body); cursor: pointer; }
+.cover-switch input { width: 20px; height: 20px; margin: 0; accent-color: var(--button); }
 @media (min-width: 900px) {
   .drill { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
   .drill .watch-head { grid-column: 1 / -1; }

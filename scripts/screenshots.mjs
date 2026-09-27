@@ -53,6 +53,16 @@ window.YT = { Player: function (id, opts) {
   var el = document.getElementById(id);
   el.style.cssText = 'display:flex;align-items:center;justify-content:center;color:#cfc6b8;font:14px system-ui;background:#111';
   el.textContent = 'YouTube player (stand-in for screenshots)';
+  // On Practice, subtitles burned into the picture the way Easy French does:
+  // French, and English under it, near the bottom.
+  if (location.pathname === '/practice') {
+    el.style.position = 'absolute';
+    var sub = document.createElement('div');
+    sub.id = 'burned-in';
+    sub.style.cssText = 'position:absolute;left:0;right:0;bottom:6%;text-align:center;font:600 15px system-ui;color:#fff;text-shadow:0 1px 2px #000';
+    sub.innerHTML = '<div style="color:#ffe14d">Est-ce que vous êtes heureux ?</div><div>Are you happy?</div>';
+    el.appendChild(sub);
+  }
   if (opts.playerVars && opts.playerVars.start) window.__t = opts.playerVars.start;
   window.__vid = opts.videoId;
   var self = this;
@@ -453,6 +463,15 @@ async function playingClip(page, pattern) {
   for (const id of ids) all.push(...(await (await page.request.get(`${base}/api/drills/clips/${id}`)).json()).items);
   return all.find((c) => c.video.youtube_id === vid && Math.abs(c.start_s - t) < 0.01);
 }
+// The band is showing, is the lower 35% of the player down to its bottom
+// edge, and sits over the burned-in subtitles.
+async function bandCovers(page) {
+  if (!(await page.isVisible('#cover'))) return false;
+  const [p, b, s] = await Promise.all(['.player', '#cover', '#burned-in'].map((q) => page.locator(q).boundingBox()));
+  const near = (x, y) => Math.abs(x - y) < 1.5;
+  return near(b.x, p.x) && near(b.width, p.width) && near(b.y + b.height, p.y + p.height) && near(b.height, p.height * 0.35)
+    && s.y >= b.y && s.y + s.height <= b.y + b.height;
+}
 async function pick(page, clip, right) {
   const labels = await page.locator('#card .choices').first().locator('.choice').allInnerTexts();
   const i = labels.findIndex((l) => (l.trim() === clip.written.trim()) === right);
@@ -481,6 +500,8 @@ async function pick(page, clip, right) {
   await page.waitForURL(/\/practice\?p=je-ch/);
   await page.waitForSelector('#card .hear');
   check('a round opens with the line hidden', !(await page.isVisible('#card .choices')) && (await page.locator('#card .said').count()) === 0);
+  check('"cover the picture" is on by default', await page.isChecked('#cover-on'));
+  check('the band covers the picture before the first clip plays', await page.isVisible('#cover'));
   await page.click('#card .hear');
   await page.waitForSelector('#card .choices');
   let clip = await playingClip(page, 'je-ch');
@@ -494,10 +515,13 @@ async function pick(page, clip, right) {
   const choices = await page.locator('#card .choice').allInnerTexts();
   check('three written lines to choose from, the real one among them', choices.length === 3 && choices.includes(clip.written) && new Set(choices).size === 3, choices.join(' | '));
   check('"Which pattern?" is not asked in a one-pattern round', (await page.locator('#card .q').allInnerTexts()).join() === 'What was said?');
+  check('while the line is hidden, the band covers the burned-in subtitles', await bandCovers(page));
+  check('with the words "covered until you answer"', (await page.locator('#cover').innerText()) === 'covered until you answer');
   await shot(page, 'drill-hidden-phone-light');
   await pick(page, clip, true);
   await page.waitForSelector('#card .verdict');
   await wait(700);
+  check('the band lifts once he answers', !(await page.isVisible('#cover')) && await page.isVisible('#burned-in'));
   check('a right answer says "Knew it."', (await page.locator('#card .verdict').innerText()) === 'Knew it.');
   check('with the line as said, tinted', (await page.locator('#card .drill-line mark.tint').count()) > 0);
   check('and the pattern named with its explanation', /je sais → chais, je suis → chuis[^—\n]*— The e of je drops/.test(await page.locator('#card .why').innerText()));
@@ -511,6 +535,7 @@ async function pick(page, clip, right) {
     await page.waitForFunction((n) => document.querySelector('#card .label').textContent.startsWith(`clip ${n} `), k + 1);
     clip = await playingClip(page, 'je-ch');
     check(`"next" plays the next clip (${k + 1})`, Boolean(clip) && (await page.evaluate(() => window.__state)) === 1);
+    if (k === 1) check('and the band is back for it', await bandCovers(page));
     seen.push(clip.id);
     const right = k !== 1;
     await pick(page, clip, right);
@@ -532,9 +557,21 @@ async function pick(page, clip, right) {
   const after = await (await page.request.get(`${base}/api/patterns`)).json();
   check('a wrong answer makes its patterns shaky', wrongClip.patterns.every((id) => after.patterns.find((p) => p.id === id).state === 'shaky'));
   check('a right answer counts as heard in a drill', after.patterns.find((p) => p.id === 'je-ch').counts.drill_clean >= 1);
+  check('no band on the end screen', !(await page.isVisible('#cover')));
   await page.click('#card button.primary');
   await page.waitForSelector('#card .hear');
   check('"again" starts a new round', /^clip 1 of/.test(await page.locator('#card .label').first().textContent()));
+  // the switch: off shows the picture, and stays off on this device
+  await page.uncheck('#cover-on');
+  check('"cover the picture" off: the picture is uncovered', !(await page.isVisible('#cover')));
+  await page.reload();
+  await page.waitForSelector('#card .hear');
+  check('the switch is remembered', !(await page.isChecked('#cover-on')) && !(await page.isVisible('#cover')));
+  await page.click('#card .hear');
+  await page.waitForSelector('#card .choices');
+  check('and a clip plays with nothing covered', !(await page.isVisible('#cover')));
+  await page.check('#cover-on');
+  check('on again: the band is back while the line is hidden', await bandCovers(page));
 
   // Mix: "What was said?", then "Which pattern?"
   await page.goto(`${base}/practice`);
