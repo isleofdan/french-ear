@@ -174,6 +174,16 @@ test('a refusal from OpenRouter, or no French heard, says where it came from', a
   assert.equal((await call('GET', '/api/videos')).body.items.filter((v) => /emptyText02|geminiNone1/.test(v.youtube_id || '')).length, 0, 'nothing saved');
 });
 
+test('a link YouTube says is unavailable is refused before Gemini is asked: nothing to hear, nothing invented', async () => {
+  const before = (await (await fetch(`${orBase}/calls`)).json()).videos.length;
+  assert.equal((await call('POST', '/api/videos', { link: 'https://www.youtube.com/watch?v=goneVideo01' })).status, 202);
+  const info = await readDone('goneVideo01');
+  assert.equal(info.video_id, null);
+  assert.equal(info.failure.from, 'youtube');
+  assert.equal(info.failure.error, 'Gemini couldn\'t read this video: YouTube says this video is unavailable ("Video unavailable"), so there is nothing to hear.');
+  assert.equal((await (await fetch(`${orBase}/calls`)).json()).videos.length, before, 'Gemini was not asked');
+});
+
 test('"Read the video again" for a saved video replaces its lines; kept lines stay kept', async () => {
   const id = (await readDone('geminiGood1')).video_id;
   const first = (await call('GET', `/api/videos/${id}`)).body;
@@ -193,4 +203,40 @@ test('"Read the video again" for a saved video replaces its lines; kept lines st
   const kept = (await call('GET', '/api/kept')).body.items.filter((k) => k.video.id === id);
   assert.equal(kept.find((k) => k.written === opening.written).earlier, false, 'a kept line still there stays on the new line');
   assert.equal(kept.find((k) => k.written === later.written).earlier, true, 'a kept line gone from the new lines is kept from before');
+});
+
+test('at start, a video read from its link that YouTube says is unavailable, with no title found, is removed with its tally events', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fe-invented-'));
+  const db = require('../lib/db');
+  db.open(dir);
+  const lines = [{ start_s: 0, end_s: 1, written: 'Bonjour à tous.' }, { start_s: 1, end_s: 3, written: "Aujourd'hui, on va parler de la France." }];
+  const invented = db.addVideo({ youtube_id: 'goneVideo02', title: 'https://www.youtube.com/watch?v=goneVideo02', caption_track: 'gemini', lines });
+  const real = db.addVideo({ youtube_id: 'geminiGood1', title: 'https://www.youtube.com/watch?v=geminiGood1', caption_track: 'gemini', lines });
+  const titled = db.addVideo({ youtube_id: 'goneVideo03', title: 'A video taken down since', caption_track: 'gemini', lines });
+  const lineId = db.getVideo(invented).lines[0].id;
+  db.addEventRow('looked', 'il-y-a', lineId);
+  db.handle().close();
+
+  const [ytPort, port] = [await freePort(), await freePort()];
+  kids.push(start(['scripts/mock-youtube.mjs', String(ytPort)]));
+  await up(`http://127.0.0.1:${ytPort}/`);
+  kids.push(start(['server.js'], {
+    PORT: String(port), DATA_DIR: dir, COOKIE_INSECURE: '1', APP_PASSWORD: 'pw', COOKIE_SECRET: 'x'.repeat(64), OPENROUTER_API_KEY: 'k',
+    OPENROUTER_URL: `${orBase}/v1/chat/completions`, YT_BASE: `http://127.0.0.1:${ytPort}`,
+  }));
+  const b2 = `http://127.0.0.1:${port}`;
+  await up(`${b2}/health`);
+  const c2 = (await fetch(`${b2}/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ passphrase: 'pw' }) })).headers.get('set-cookie').split(';')[0];
+  const get = async (p) => (await fetch(`${b2}${p}`, { headers: { cookie: c2, accept: 'application/json' } })).json();
+  let ids = [];
+  for (let i = 0; i < 100; i++) {
+    ids = (await get('/api/videos')).items.map((v) => v.id);
+    if (!ids.includes(invented)) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  assert.ok(!ids.includes(invented), 'the invented one is gone');
+  assert.ok(ids.includes(real), 'a video YouTube still has stays');
+  assert.ok(ids.includes(titled), 'a video with a real title stays, even if YouTube lost it since');
+  const pats = await get('/api/patterns');
+  assert.equal(pats.patterns.find((p) => p.id === 'il-y-a').counts.looked || 0, 0, 'its tally event went with it');
 });

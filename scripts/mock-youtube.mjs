@@ -11,6 +11,10 @@
 //   emptyText02  three tracks (English auto, French auto, French); the text answers 429
 //   refusedVid2  the same as emptyText02 (a second one, for the screenshots)
 //   json3Only01  a French track whose text answers only as json3
+//   geminiGood1, geminiFew01, geminiNone1, slowRefuse1  no captions; for the
+//                link read (answered by the OpenRouter mock)
+// Any other id answers the way YouTube does for a video that does not exist:
+// playability status ERROR, "Video unavailable".
 import http from 'node:http';
 import { VIDEO_LINES } from './fixtures.mjs';
 
@@ -32,6 +36,11 @@ const VIDEOS = {
   emptyText02: { title: 'Refused track (mock)', tracks: (id) => [track(id, 'en', 'asr', 'English (auto-generated)'), track(id, 'fr', 'asr', 'French (auto-generated)'), track(id, 'fr', null, 'French')] },
   refusedVid2: { title: 'Refused track, again (mock)', tracks: (id) => [track(id, 'en', 'asr', 'English (auto-generated)'), track(id, 'fr', 'asr', 'French (auto-generated)'), track(id, 'fr', null, 'French')] },
   json3Only01: { title: 'json3 only (mock)', tracks: (id) => [track(id, 'fr', null, 'French')] },
+  // videos the link read (Gemini) is tried on; their captions are not used
+  geminiGood1: { title: 'Read from the link (mock)', tracks: () => [] },
+  geminiFew01: { title: 'Too few lines (mock)', tracks: () => [] },
+  geminiNone1: { title: 'No French (mock)', tracks: () => [] },
+  slowRefuse1: { title: 'Slow, then refused (mock)', tracks: () => [] },
 };
 
 function player(id) {

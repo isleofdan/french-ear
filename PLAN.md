@@ -183,7 +183,14 @@ pictures, the cost line from the Fly log, the Share diagnosis).
   (under "Add the transcript again") replaces a saved video's lines.
   YouTube's caption fetch stays, behind "Try YouTube again". The log line
   `link-read: … cost $…` gives the cost per video.
-- Checks: `npm test` 101 (92 before): the link read's checks with a
+- **Live (27 Sep):** the brief's link (Zq2KsoD8vJI) is a dead video; Gemini
+  still returned 24 invented lines ("Aujourd'hui, on va parler de la
+  France…"). Now YouTube is asked first and a video it calls unavailable is
+  refused before Gemini; at start, a link-read video with no title found that
+  YouTube calls unavailable is removed with its lines and tally events. A
+  real episode (C2nA_FSX97M, Easy French 258, May 2026) read right: lines
+  specific to the episode, in ordinary written French, timed.
+- Checks: `npm test` 103 (92 before): the link read's checks with a
   false-rejection case (accents, both apostrophes, hours, fractions, a
   missing end), a bad line dropped, too few refused, refusals from OpenRouter
   and from Gemini, a re-read replacing lines. Browser run: the band, the

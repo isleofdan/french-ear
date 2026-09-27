@@ -149,7 +149,13 @@ function startLinkRead(youtubeId, replaceId = null) {
   failures.delete(youtubeId);
   (async () => {
     const had = replaceId ? db.getVideo(replaceId) : null;
-    const details = had ? { title: had.title, duration_s: had.duration_s } : await youtube.fetchDetails(youtubeId);
+    // Gemini, given a link to a video that does not exist, writes plausible
+    // lines anyway (seen live, 27 Sep: 24 invented lines for a dead link). So
+    // YouTube is asked first; a video it says is unavailable is refused
+    // before any call to Gemini.
+    const found = await youtube.fetchDetails(youtubeId);
+    if (found.unavailable) throw new linkread.LinkReadError('youtube', `YouTube says this video is unavailable ("${found.unavailable}"), so there is nothing to hear.`);
+    const details = had ? { title: had.title, duration_s: had.duration_s || found.duration_s } : found;
     const got = await linkread.readLink(youtubeId, { durationS: details.duration_s });
     const u = got.usage;
     console.log(`link-read: ${youtubeId}: ${got.lines.length} line(s) of ${got.read}${got.nDropped ? `, dropped ${JSON.stringify(got.dropped)}` : ''} (${got.model}${u && u.cost != null ? `, cost $${u.cost}` : ''}${u ? `, ${u.prompt_tokens} in / ${u.completion_tokens} out tokens` : ''})`);
@@ -520,6 +526,18 @@ for (const id of db.videosNotJoined()) {
   const r = db.replaceLines(id, joined);
   console.log(`video ${id}: ${old.length} caption lines joined into ${r.lines} sentences (${r.moved} kept moved, ${r.earlier} kept from the earlier lines)`);
 }
+// Videos read from their link whose title was never found and which YouTube
+// now says are unavailable: Gemini invented their lines (seen live, 27 Sep,
+// before the check above existed). They are removed with their lines and
+// the tally events on them, once, in the background.
+(async () => {
+  for (const v of db.listVideos({ limit: 1000 }).filter((x) => x.caption_track === 'gemini' && x.youtube_id && /^https?:/.test(x.title))) {
+    const d = await youtube.fetchDetails(v.youtube_id);
+    if (!d.unavailable) continue;
+    const r = db.deleteVideo(v.id);
+    console.log(`video ${v.id}: removed (read from its link, but YouTube says "${d.unavailable}": its lines were invented; ${r.lines} lines, ${r.events} tally events)`);
+  }
+})().catch((e) => console.error('invented-video check:', e));
 // Lines left pending by a restart are worked again.
 for (const id of db.videosWithPending()) spoken.workVideo(id);
 // Photos from the TV a restart left half done.
