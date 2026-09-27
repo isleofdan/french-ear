@@ -43,8 +43,10 @@ async function worked(id) {
   throw new Error('never worked out');
 }
 
-test('a failed caption fetch saves nothing and names the page to paste on, with the tracks', async () => {
-  const r = await call('POST', '/api/videos', { link: 'https://www.youtube.com/watch?v=emptyText02' });
+test('a failed caption fetch ("Try YouTube again") saves nothing and names the page to paste on, with the tracks', async () => {
+  // A link alone goes to Gemini first now (test/linkread.test.js); YouTube's
+  // own captions are asked for by "Try YouTube again".
+  const r = await call('POST', '/api/youtube/emptyText02/retry');
   assert.equal(r.status, 502);
   assert.equal(r.body.page, '/watch?yt=emptyText02');
   assert.match(r.body.error, /Captions the video offers: English \(auto-generated\), French \(auto-generated\), French\./);
@@ -52,7 +54,7 @@ test('a failed caption fetch saves nothing and names the page to paste on, with 
   assert.equal(page.video_id, null);
   assert.match(page.failure.error, /gave no text/);
   assert.deepEqual(page.failure.tracks, ['English (auto-generated)', 'French (auto-generated)', 'French']);
-  // "Try YouTube again" runs the fetch once more: the same refusal here
+  // and once more: the same refusal here
   const again = await call('POST', '/api/youtube/emptyText02/retry');
   assert.equal(again.status, 502);
   assert.equal((await call('GET', '/api/home')).body.videos.length, 0, 'nothing saved');

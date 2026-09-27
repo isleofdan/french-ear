@@ -15,9 +15,12 @@
 // how I read your screenshots"), with how many lines came from each picture.
 // Any YouTube video takes a new paste or new screenshots ("Add the transcript
 // again"), which replace its lines.
-// /watch?yt=<YouTube id> is a video YouTube wouldn't give the captions for:
-// nothing saved yet, the player, why, a box for the transcript, and "Try
-// YouTube again".
+// /watch?yt=<YouTube id> is a video with no lines saved yet: Gemini reading
+// it from its link ("Reading the video… this can take a minute or two"), or
+// why the read (or YouTube's captions) refused. Either way the player, the
+// screenshots and the box for the transcript, "Read the video again" and
+// "Try YouTube again". A saved video can be read again from its link under
+// "Add the transcript again"; the new lines replace its lines.
 (function () {
   const { api, sendPictures, picturePicker, el, topBar, clock, saidNode, shakySet, whyList } = window.FE;
   document.getElementById('top').replaceWith(topBar(''));
@@ -433,7 +436,8 @@
   function drawReadback() {
     $('readback').hidden = false;
     const fromPictures = video.caption_track === 'screenshots';
-    $('readback-head').textContent = fromPictures ? 'Here’s how I read your screenshots' : 'Here’s how I read your paste';
+    const fromGemini = video.caption_track === 'gemini';
+    $('readback-head').textContent = fromGemini ? 'Here’s what Gemini heard' : fromPictures ? 'Here’s how I read your screenshots' : 'Here’s how I read your paste';
     const note = fromPictures ? picturesNote() : '';
     $('readback-pictures').hidden = !note;
     $('readback-pictures').textContent = note;
@@ -446,7 +450,7 @@
       ]));
     }
     $('readback-note').textContent = lines.length + (lines.length === 1 ? ' line' : ' lines') + ' in all. '
-      + (timed ? 'If these three don’t match how the video starts, the ' + (fromPictures ? 'screenshots were' : 'paste was') + ' read wrong.'
+      + (timed ? 'If these three don’t match how the video starts, ' + (fromGemini ? 'Gemini heard it wrong.' : 'the ' + (fromPictures ? 'screenshots were' : 'paste was') + ' read wrong.')
         : 'No timings in this transcript — lines won’t follow the video.');
   }
 
@@ -481,6 +485,22 @@
   // video's lines, and the page opens again on them.
   function drawRepaste() {
     $('repaste').hidden = false;
+    const reread = $('reread-go');
+    reread.addEventListener('click', async () => {
+      $('reread-msg').textContent = '';
+      reread.disabled = true;
+      reread.textContent = 'Reading the video… this can take a minute or two';
+      try {
+        await api('POST', '/api/videos/' + video.id + '/read');
+        const info = await followRead(video.youtube_id);
+        if (info.failure) throw new Error(info.failure.error);
+        location.replace('/watch?id=' + video.id);
+      } catch (err) {
+        $('reread-msg').textContent = err.message;
+        reread.disabled = false;
+        reread.textContent = 'Read the video again';
+      }
+    });
     picturesForm('re-', video.youtube_id);
     const form = $('repaste-form');
     const go = $('repaste-go');
@@ -501,12 +521,26 @@
     });
   }
 
-  // A video YouTube wouldn't give the captions for. Nothing is saved until
-  // lines exist: the transcript pasted here, or YouTube answering this time.
+  // Asks every three seconds while Gemini reads the video; answers what the
+  // server says once the read is done (a video id, or a failure).
+  async function followRead(yt) {
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 3000));
+      let info;
+      try { info = await api('GET', '/api/youtube/' + yt); } catch (e) { continue; }
+      if (!info.reading) return info;
+    }
+  }
+
+  // A video with no lines saved yet. Nothing is saved until lines exist:
+  // Gemini's read, the transcript pasted here, screenshots, or YouTube's
+  // captions this time. While Gemini reads, the other ways in stay open.
   async function loadNoLines() {
     let info;
     try { info = await api('GET', '/api/youtube/' + ytId); } catch (err) { $('load-msg').textContent = err.message; return; }
-    if (info.video_id) { location.replace('/watch?id=' + info.video_id); return; }
+    const t = Number(q.get('t')) || 0;
+    const open = (id) => location.replace('/watch?id=' + id + (t ? '&t=' + t : ''));
+    if (info.video_id && !info.reading) { open(info.video_id); return; }
     video = { youtube_id: ytId };
     timed = false;
     $('watch').hidden = false;
@@ -515,43 +549,83 @@
     for (const id of ['modes', 'ear', 'lines', 'side']) $(id).hidden = true;
     $('watch').style.gridTemplateColumns = '1fr';
     $('nolines').hidden = false;
-    $('nolines-why').textContent = info.failure
-      ? 'What YouTube did: ' + info.failure.error
-      : 'YouTube refused the captions earlier; the details were not kept.';
 
     const form = $('paste-form');
     const go = $('paste-go');
     const again = $('yt-again');
+    const readAgain = $('link-again');
     const msg = $('paste-msg');
-    picturesForm('', ytId, (on) => { go.disabled = on; again.disabled = on; });
+    const nolines = $('nolines');
+
+    // What the page says: reading, or why nothing is here yet.
+    function say(state) {
+      nolines.classList.toggle('reading', state.reading);
+      readAgain.hidden = state.reading;
+      if (state.reading) {
+        $('nolines-head').textContent = 'Reading the video… this can take a minute or two.';
+        $('nolines-why').textContent = 'You can add screenshots or paste the transcript below instead; either one is used straight away.';
+        return;
+      }
+      const f = state.failure;
+      if (f && f.kind === 'link-read') {
+        $('nolines-head').textContent = f.error;
+        $('nolines-why').textContent = 'You can read it again, add screenshots, or paste the transcript below.';
+      } else if (f) {
+        $('nolines-head').textContent = 'YouTube wouldn’t give me the captions.';
+        $('nolines-why').textContent = 'What YouTube did: ' + f.error;
+      } else {
+        $('nolines-head').textContent = 'No lines for this video yet.';
+        $('nolines-why').textContent = 'Read the video, add screenshots, or paste the transcript below.';
+      }
+    }
+    say(info);
+
+    async function follow() {
+      const done = await followRead(ytId);
+      if (done.video_id) { open(done.video_id); return; }
+      say(done);
+    }
+    if (info.reading) follow();
+
+    picturesForm('', ytId, (on) => { go.disabled = on; again.disabled = on; readAgain.disabled = on; });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       msg.textContent = '';
-      go.disabled = true; again.disabled = true;
+      go.disabled = true; again.disabled = true; readAgain.disabled = true;
       go.textContent = 'Reading your transcript…';
       try {
         const v = await api('POST', '/api/videos', { link: ytId, transcript: $('paste').value });
         location.href = '/watch?id=' + v.id;
       } catch (err) {
         msg.textContent = err.message;
-        go.disabled = false; again.disabled = false;
+        go.disabled = false; again.disabled = false; readAgain.disabled = false;
         go.textContent = 'Use this transcript';
       }
     });
+    readAgain.addEventListener('click', async () => {
+      msg.textContent = '';
+      try {
+        const v = await api('POST', '/api/videos', { link: ytId });
+        if (v.id) { open(v.id); return; }
+        say({ reading: true });
+        follow();
+      } catch (err) { msg.textContent = err.message; }
+    });
     again.addEventListener('click', async () => {
       msg.textContent = '';
-      go.disabled = true; again.disabled = true;
+      go.disabled = true; again.disabled = true; readAgain.disabled = true;
       again.textContent = 'Asking YouTube…';
       try {
         const v = await api('POST', '/api/youtube/' + ytId + '/retry');
         location.href = '/watch?id=' + v.id;
       } catch (err) {
+        $('nolines-head').textContent = 'YouTube wouldn’t give me the captions.';
         $('nolines-why').textContent = 'Tried again just now. What YouTube did: ' + err.message;
-        go.disabled = false; again.disabled = false;
+        go.disabled = false; again.disabled = false; readAgain.disabled = false;
         again.textContent = 'Try YouTube again';
       }
     });
-    startPlayer(0);
+    startPlayer(t);
   }
 
   // --- start -----------------------------------------------------------------
@@ -591,9 +665,10 @@
       return;
     }
 
-    const pasted = video.caption_track === 'pasted' || video.caption_track === 'screenshots';
+    const pasted = video.caption_track === 'pasted' || video.caption_track === 'screenshots' || video.caption_track === 'gemini';
     timed = lines.some((l) => l.start_s != null);
-    $('sub').textContent = video.counts.total + ' lines · ' + (video.caption_track === 'screenshots' ? 'from your screenshots of the transcript'
+    $('sub').textContent = video.counts.total + ' lines · ' + (video.caption_track === 'gemini' ? 'read from the video by Gemini'
+      : video.caption_track === 'screenshots' ? 'from your screenshots of the transcript'
       : pasted ? 'from a transcript you pasted' : 'captions: ' + (video.caption_track || 'unknown'));
     drawLines();
     drawStatus();

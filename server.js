@@ -18,6 +18,7 @@ const tally = require('./lib/tally');
 const { parseTranscript } = require('./lib/transcript');
 const { joinFragments } = require('./lib/sentences');
 const pictures = require('./lib/pictures');
+const linkread = require('./lib/linkread');
 const tv = require('./lib/tv');
 const drills = require('./lib/drills');
 const { PATTERNS, BY_ID } = require('./lib/patterns');
@@ -106,7 +107,7 @@ route('GET', /^\/api\/patterns$/, (req, res) => sendJson(res, 200, tally.states(
 const failures = new Map();
 function noteFailure(youtubeId, e) {
   failures.delete(youtubeId);
-  failures.set(youtubeId, { error: e.message, kind: e.kind, tracks: e.detail?.tracks || [], at: new Date().toISOString() });
+  failures.set(youtubeId, { error: e.message, kind: e.kind, from: e.from || null, tracks: e.detail?.tracks || [], at: new Date().toISOString() });
   while (failures.size > 200) failures.delete(failures.keys().next().value);
 }
 
@@ -134,6 +135,48 @@ async function fetchAndSave(res, youtubeId, startS) {
   return sendJson(res, 201, { ...videoOut(id), start_s: startS, tracks: got.tracks });
 }
 
+// The video read straight from its link by Gemini (lib/linkread.js), in the
+// background: it can take a minute or two, longer than a phone keeps a
+// request open. By YouTube id, while it runs; the video's page asks
+// /api/youtube/<id> until the video is saved or the read refused (kept in
+// `failures`, kind 'link-read'). `replaceId`: a saved video whose lines the
+// read replaces (the same rule as a new paste). Once lines exist they take
+// the same path as a paste: joined into sentences, saved, the "as said" pass.
+const reading = new Map(); // youtube id -> { at, replaceId }
+function startLinkRead(youtubeId, replaceId = null) {
+  if (reading.has(youtubeId)) return;
+  reading.set(youtubeId, { at: Date.now(), replaceId });
+  failures.delete(youtubeId);
+  (async () => {
+    const had = replaceId ? db.getVideo(replaceId) : null;
+    const details = had ? { title: had.title, duration_s: had.duration_s } : await youtube.fetchDetails(youtubeId);
+    const got = await linkread.readLink(youtubeId, { durationS: details.duration_s });
+    const u = got.usage;
+    console.log(`link-read: ${youtubeId}: ${got.lines.length} line(s) of ${got.read}${got.nDropped ? `, dropped ${JSON.stringify(got.dropped)}` : ''} (${got.model}${u && u.cost != null ? `, cost $${u.cost}` : ''}${u ? `, ${u.prompt_tokens} in / ${u.completion_tokens} out tokens` : ''})`);
+    const lines = joinFragments(got.lines);
+    if (replaceId) {
+      const r = db.replaceLines(replaceId, lines, { caption_track: 'gemini' });
+      console.log(`video ${replaceId}: lines replaced by a new read of the video (${r.lines} lines; ${r.moved} kept moved, ${r.earlier} kept from the earlier lines)`);
+      spoken.workVideo(replaceId);
+      return;
+    }
+    const now = db.findVideoByYoutubeId(youtubeId);
+    if (now) { console.log(`link-read: ${youtubeId}: saved meanwhile (video ${now.id}) from a paste or screenshots; the read is not used`); return; }
+    const title = details.title || (await youtube.oembedTitle(youtubeId)) || `https://www.youtube.com/watch?v=${youtubeId}`;
+    const id = db.addVideo({ youtube_id: youtubeId, title, duration_s: details.duration_s, caption_track: 'gemini', lines });
+    console.log(`video ${id}: "${title}" (${lines.length} lines read from the video by ${got.model})`);
+    spoken.workVideo(id);
+  })().catch((e) => {
+    if (e instanceof linkread.LinkReadError) {
+      console.error(`link-read: ${youtubeId}: refused (${e.from}): ${e.reason}`);
+      noteFailure(youtubeId, Object.assign(e, { kind: 'link-read' }));
+    } else {
+      console.error(`link-read: ${youtubeId}:`, e);
+      noteFailure(youtubeId, { message: "Gemini couldn't read this video: something went wrong on the server.", kind: 'link-read', from: 'server' });
+    }
+  }).finally(() => reading.delete(youtubeId));
+}
+
 // A pasted transcript -> { lines, timed }: read, then joined into sentences.
 function pastedLines(paste) {
   const { lines, timed } = parseTranscript(paste);
@@ -141,13 +184,15 @@ function pastedLines(paste) {
   return { lines: joinFragments(lines), timed };
 }
 
-// { link, transcript? } -> the video. With a transcript pasted in, the caption
-// fetch is skipped: the paste is the video's lines, and only the title and
-// length come from YouTube (the link stands in for the title when YouTube
-// gives nothing). Without one, the captions are fetched. A video already
-// added answers the one saved; with a transcript, the paste replaces its
-// lines. Either way the video is answered at once while the "as said" pass
-// runs in the background.
+// { link, transcript? } -> the video. With a transcript pasted in, the paste
+// is the video's lines, and only the title and length come from YouTube (the
+// link stands in for the title when YouTube gives nothing). Without one,
+// Gemini reads the video from its link in the background (startLinkRead):
+// answered 202 with the video's page, which follows the read. YouTube's own
+// captions are no longer asked first (they are refused from the server);
+// "Try YouTube again" still asks for them. A video already added answers the
+// one saved; with a transcript, the paste replaces its lines. Either way the
+// "as said" pass runs in the background.
 route('POST', /^\/api\/videos$/, async (req, res) => {
   const body = await readJson(req);
   const link = youtube.parseLink(body.link);
@@ -155,7 +200,10 @@ route('POST', /^\/api\/videos$/, async (req, res) => {
   const had = db.findVideoByYoutubeId(link.id);
   const paste = typeof body.transcript === 'string' ? body.transcript.trim() : '';
   if (had && !paste) return sendJson(res, 200, { ...videoOut(had.id), start_s: link.start_s, existing: true });
-  if (!paste) return fetchAndSave(res, link.id, link.start_s);
+  if (!paste) {
+    startLinkRead(link.id);
+    return sendJson(res, 202, { youtube_id: link.id, reading: true, page: `/watch?yt=${link.id}${link.start_s ? `&t=${link.start_s}` : ''}`, start_s: link.start_s });
+  }
 
   const { lines, timed } = pastedLines(paste);
   if (had) {
@@ -247,7 +295,17 @@ route('GET', /^\/api\/shared\/(?<token>[0-9a-f]{24})$/, (req, res, { token }) =>
 // why its captions could not be fetched (null after a restart).
 route('GET', /^\/api\/youtube\/(?<yt>[A-Za-z0-9_-]{11})$/, (req, res, { yt }) => {
   const had = db.findVideoByYoutubeId(yt);
-  return sendJson(res, 200, { youtube_id: yt, video_id: had ? had.id : null, failure: had ? null : failures.get(yt) || null });
+  return sendJson(res, 200, { youtube_id: yt, video_id: had ? had.id : null, reading: reading.has(yt), failure: failures.get(yt) || null });
+});
+
+// "Read the video again": Gemini reads a saved video from its link once more,
+// and its lines replace the video's (kept lines stay kept). In the
+// background; the page follows it by /api/youtube/<id>.
+route('POST', /^\/api\/videos\/(?<id>\d+)\/read$/, (req, res, { id }) => {
+  const v = db.getVideo(Number(id));
+  if (!v.youtube_id) throw new db.AppError(400, 'A typed line has no video to read.');
+  startLinkRead(v.youtube_id, v.id);
+  return sendJson(res, 202, { youtube_id: v.youtube_id, reading: true });
 });
 
 // "Try YouTube again": the caption fetch, once more.

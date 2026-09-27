@@ -66,15 +66,18 @@ window.YT = { Player: function (id, opts) {
   if (opts.playerVars && opts.playerVars.start) window.__t = opts.playerVars.start;
   window.__vid = opts.videoId;
   var self = this;
+  window.__tapVideo = function () { window.__blocked = false; window.__state = 1; if (opts.events.onStateChange) opts.events.onStateChange({ target: self, data: 1 }); };
   setTimeout(function () { opts.events.onReady({ target: self }); }, 10);
 } };
 YT.Player.prototype.getCurrentTime = function () { return window.__t; };
 YT.Player.prototype.getPlayerState = function () { return window.__state; };
 YT.Player.prototype.seekTo = function (t) { window.__t = t; };
-YT.Player.prototype.playVideo = function () { window.__state = 1; };
+// window.__blocked: a phone that will not let the page start the video until
+// the video itself is tapped (window.__tapVideo() stands in for that tap).
+YT.Player.prototype.playVideo = function () { if (!window.__blocked) window.__state = 1; };
 YT.Player.prototype.pauseVideo = function () { window.__state = 2; };
 YT.Player.prototype.unloadModule = function () {};
-YT.Player.prototype.loadVideoById = function (o) { window.__vid = o.videoId; window.__t = o.startSeconds || 0; window.__state = 1; };
+YT.Player.prototype.loadVideoById = function (o) { window.__vid = o.videoId; window.__t = o.startSeconds || 0; window.__state = window.__blocked ? 5 : 1; };
 setTimeout(function () { window.onYouTubeIframeAPIReady(); }, 0);
 `;
 
@@ -117,9 +120,16 @@ const shot = (page, name) => page.screenshot({ path: join(out, `${name}.png`), f
   await shot(page, 'home-empty-phone-light');
 
   // the link in; the watch page with the lines
+  // A link alone: Gemini reads the video (the stand-in answers at once), the
+  // video's page follows the read and opens on the lines.
   await page.fill('#link', 'https://www.youtube.com/watch?v=frManual001');
   await page.click('#link-go');
-  await page.waitForURL(/\/watch\?id=\d+/);
+  await page.waitForURL(/\/watch\?yt=frManual001/);
+  check('a link alone goes to the video\'s page while Gemini reads it', true);
+  await page.waitForURL(/\/watch\?id=\d+/, { timeout: 20000 });
+  check('the page says where the lines came from', /read from the video by Gemini/.test(await page.locator('#sub').innerText()));
+  check('"Here\'s what Gemini heard" shows the first three lines', (await page.locator('#readback-head').innerText()) === 'Here’s what Gemini heard'
+    && /0:00\s+Bonjour à tous\./.test(await page.locator('#readback-lines li').first().innerText()));
   await page.waitForSelector('#lines .line mark.tint', { timeout: 15000 });
   const lineCount = await page.locator('#lines .line').count();
   check('the watch page shows every line', lineCount === 16, `${lineCount} lines`);
@@ -219,21 +229,23 @@ const UNTIMED_PASTE = VIDEO_LINES.slice(1, 6).join('\n');
   check('home has the transcript box under the link box', await page.isVisible('#transcript'));
   check('with the words the brief gives', /Paste the transcript here \(from YouTube's Show transcript panel\)/.test(await page.locator('label[for=transcript]').innerText()));
 
-  // no paste, and YouTube refuses the caption text: the video's page says so
+  // a link alone, and Gemini is refused (OpenRouter answers 404 for this
+  // one): the video's page says so, with the other ways in
   await page.fill('#link', 'https://www.youtube.com/watch?v=emptyText02');
   await page.click('#link-go');
   await page.waitForURL(/\/watch\?yt=emptyText02/);
   await page.waitForSelector('#nolines:not([hidden])');
+  await page.waitForFunction(() => /Gemini couldn/.test(document.getElementById('nolines-head').textContent), null, { timeout: 15000 });
   const why = await page.locator('#nolines').innerText();
-  check('the failed fetch lands on the video page with the phone instructions', /YouTube wouldn't give me the captions\. On a phone or tablet, open the video in the YouTube app, tap the title, tap Show transcript, take a screenshot of the transcript, scroll and take another until you have it all, then add the screenshots here\./.test(why));
+  check('a refused read lands on the video page and says so in plain words', /Gemini couldn't read this video: OpenRouter answered 404/.test(why.replace(/’/g, "'")), why.slice(0, 120));
+  check('with the phone instructions', /On a phone or tablet, open the video in the YouTube app, tap the title, tap Show transcript, take a screenshot of the transcript, scroll and take another until you have it all, then add the screenshots here\./.test(why));
   check('with the screenshot control right there', await page.isVisible('#pick') && /Add screenshots of the transcript/.test(await page.locator('#pick').innerText()));
   check('and not the laptop ones', !/Ctrl\+A/.test(why));
-  check('the failure names the caption tracks', /Captions the video offers: English \(auto-generated\), French \(auto-generated\), French\./.test(why));
   check('the paste box is right there', await page.isVisible('#paste'));
-  check('and "Try YouTube again"', await page.isVisible('#yt-again'));
+  check('and "Read the video again" and "Try YouTube again"', await page.isVisible('#link-again') && await page.isVisible('#yt-again'));
   await page.click('#yt-again');
   await page.waitForFunction(() => /Tried again just now/.test(document.getElementById('nolines-why').textContent));
-  check('"Try YouTube again" asks once more and says what came back', true);
+  check('"Try YouTube again" asks for the captions and says what came back', /Captions the video offers: English \(auto-generated\), French \(auto-generated\), French\./.test(await page.locator('#nolines-why').innerText()));
 
   // the paste, on that page
   await page.fill('#paste', TIMED_PASTE);
@@ -577,7 +589,15 @@ async function pick(page, clip, right) {
   await page.goto(`${base}/practice`);
   await page.click('a.drill-entry.mix');
   await page.waitForURL(/\/practice\?p=mix/);
+  // a phone that waits for a tap on the video itself before the page may
+  // start it: a note says so, and goes once the video plays
+  await page.evaluate(() => { window.__blocked = true; });
   await page.click('#card .hear');
+  await wait(2000);
+  check('a clip that did not start: "Tap the video once to start it."', await page.isVisible('#tap-hint') && /^Tap the video once to start it\./.test(await page.locator('#tap-hint').innerText()));
+  await shot(page, 'drill-tap-hint-phone-light');
+  await page.evaluate(() => window.__tapVideo());
+  check('the note goes once the video plays', !(await page.isVisible('#tap-hint')));
   await page.waitForSelector('#card .choices');
   clip = await playingClip(page, 'mix');
   await pick(page, clip, true);
@@ -673,11 +693,29 @@ for (const view of Object.keys(VIEWS)) {
     await shot(page, `home-paste-field-${tag}`);
     await page.click('#link-go');
     await page.waitForSelector('#nolines:not([hidden])');
+    await page.waitForFunction(() => /Gemini couldn/.test(document.getElementById('nolines-head').textContent), null, { timeout: 15000 });
     await page.evaluate(() => window.scrollTo(0, 0));
     const help = await page.locator('#nolines').innerText();
     check(`the paste help fits the screen (${tag})`, view === 'phone' ? /On a phone or tablet/.test(help) && !/Ctrl\+A/.test(help) : /On a laptop/.test(help) && !/On a phone or tablet/.test(help));
     check(`the screenshot control is on the no-lines page (${tag})`, await page.isVisible('#pick'));
     await shot(page, `watch-no-captions-${tag}`);
+    // a link alone while Gemini reads (the stand-in takes six seconds, then
+    // refuses): "Reading the video…", the other ways in under it; then the
+    // refusal in plain words
+    await page.goto(`${base}/`);
+    await page.fill('#link', 'https://www.youtube.com/watch?v=slowRefuse1');
+    await page.click('#link-go');
+    await page.waitForURL(/\/watch\?yt=slowRefuse1/);
+    await page.waitForFunction(() => /Reading the video… this can take a minute or two\./.test(document.getElementById('nolines-head').textContent));
+    check(`while Gemini reads, the screenshots and the paste box stay there (${tag})`, await page.isVisible('#pick') && await page.isVisible('#paste') && !(await page.isVisible('#link-again')));
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await wait(100);
+    await shot(page, `watch-reading-${tag}`);
+    await page.waitForFunction(() => /Gemini couldn/.test(document.getElementById('nolines-head').textContent), null, { timeout: 20000 });
+    check(`then the refusal, in plain words (${tag})`, /Gemini couldn.t read this video: OpenRouter answered 404/.test(await page.locator('#nolines-head').innerText()) && await page.isVisible('#link-again'));
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await wait(100);
+    await shot(page, `watch-read-refused-${tag}`);
     // screenshots: the home control with two added, and the readback
     await page.goto(`${base}/`);
     await page.fill('#link', 'https://www.youtube.com/watch?v=unknownVid3');

@@ -43,6 +43,17 @@ third-party analytics, no shared register.
   default and remembered on each device, turns it off for channels with no
   text in the picture.
 
+## Getting the lines in
+
+Pasting the link is the whole job, on any device: Gemini reads the video from
+its link (YouTube refuses its own captions to the server). It writes what was
+said in ordinary written French — the "as written" side — and the "as said"
+pass works out how it sounds, the same as for a paste. While it reads (a
+minute or two), the video's page says so and the screenshots and the paste
+box stay open under it; if it refuses, the page says so in plain words, with
+the same ways in. Once lines exist, where they came from changes nothing
+downstream.
+
 ## Nothing pushes
 
 Nothing notifies, reminds, counts streaks or scores by day, and nothing asks

@@ -148,6 +148,11 @@ mark.tint.shaky { background: var(--shaky-bg); color: var(--shaky-fg); }
 .nolines { background: var(--shaky-soft); border-color: var(--shaky-edge); }
 .nolines p { margin: 0; }
 .nolines-say { font-size: 16px; color: var(--text); }
+.nolines.reading { background: var(--panel); border-color: var(--line-strong); }
+.nolines.reading .nolines-say { font-weight: 600; }
+.controls [hidden] { display: none; }
+.tap-hint { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--tint-bg); color: var(--tint-fg); font-size: 15px; }
+.tap-hint[hidden] { display: none; }
 .readback-lines { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .readback-lines li { display: flex; gap: 12px; font-size: 15px; color: var(--text); }
 .readback-lines .time { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 3.5em; padding-top: 2px; }

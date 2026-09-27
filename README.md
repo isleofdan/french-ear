@@ -4,8 +4,8 @@ A personal web app for one learner of French, Dan's father, whose trouble is
 that spoken French sounds nothing like the French he reads: *je ne sais pas*
 comes out as *chais pas*, *il y a* as *y a*, *tu as* as *t'as*.
 
-He pastes a link to a YouTube video he is watching. The app reads the video's
-French captions and shows every line twice: as written, and as you'll hear it,
+He pastes a link to a YouTube video he is watching. Gemini reads the video
+from its link and gives its French lines, and the app shows every line twice: as written, and as you'll hear it,
 with the changed parts tinted and named — each one is one of a fixed list of
 twenty spoken-French patterns (`data/patterns.json`). The video plays in the
 page through YouTube's own player, the current line kept in view. Two ways to
@@ -14,8 +14,15 @@ button, "What was that?", shows the last two). The app keeps a tally of which
 patterns keep getting past him, and a list of the lines he chose to keep.
 A second box takes one typed or pasted French sentence and shows the same.
 
-YouTube often refuses to hand caption text to a server (session one met HTTP
-429 from Fly). So a video's lines can also come from its transcript, copied
+YouTube refuses to hand caption text to a server (session one met HTTP 429
+from Fly), so a link alone is read by Gemini, through OpenRouter
+(`lib/linkread.js`): one call with the YouTube link as a video, answered with
+every spoken sentence, its start and end, in ordinary written French. It runs
+in the background; the video's page says "Reading the video… this can take a
+minute or two" and keeps the other ways in open under it. "Read the video
+again" (under "Add the transcript again") reads a saved video once more and
+replaces its lines. YouTube's own caption fetch is kept, behind "Try YouTube
+again". A video's lines can also come from its transcript, copied
 from YouTube's own "Show transcript" panel and pasted under the link, or on
 the video's page when the fetch fails. The paste is read with or without
 timestamps (`lib/transcript.js`); without them, the lines are a plain list
@@ -47,6 +54,20 @@ Open http://localhost:8080. `npm test` runs the checks against mocks;
 dark, into `docs/screenshots/`.
 
 ## The models
+
+A link alone is read by **`google/gemini-2.5-flash`** (`LINK_MODEL`
+overrides it), one OpenRouter call per video, with the request's provider
+routing pinned to Google AI Studio (`provider: { only: ["google-ai-studio"],
+allow_fallbacks: false }`; `LINK_PROVIDER` overrides the name): OpenRouter's
+video page says only Gemini served by Google AI Studio accepts YouTube links.
+There is no second model: no other can read the link. Each line is checked
+(`checkLinkLine`): the start reads as a time and never goes backwards, the end
+is not before the start, the text is not empty; a bad line is dropped and
+counted, and fewer than three good lines is a refusal, shown as "Gemini
+couldn't read this video: …". The time limit comes from the video's length
+(a ten-minute video, ~120 lines, just over three minutes). The cost
+per video is read from the server log's `link-read: … cost $…` line after the
+first live read; until then it is not known here.
 
 The "as said" pass calls OpenRouter, one call per batch of up to 40 lines:
 
@@ -98,6 +119,7 @@ fails is saved with its reason and shown as "not yet worked out", with a
 | `DATA_DIR` | where the SQLite file and the `photos/` folder live (`/data` on Fly, `./var` locally) |
 | `MODEL`, `FALLBACK_MODEL` | override the two "as said" models |
 | `IMAGE_MODEL`, `IMAGE_FALLBACK_MODEL` | override the two models that read screenshots |
+| `LINK_MODEL`, `LINK_PROVIDER` | override the model that reads a video from its link, and the OpenRouter provider it is pinned to |
 | `OPENROUTER_URL`, `YT_BASE` | point the app at local mocks in checks |
 | `COOKIE_INSECURE=1` | lets the cookie work over plain http locally |
 
@@ -105,6 +127,7 @@ fails is saved with its reason and shown as "not yet worked out", with a
 
 - `server.js` — one plain Node server: the passphrase gate, the JSON routes under `/api/`, the pages.
 - `lib/youtube.js` — the link parser and the caption fetch (title, tracks, lines).
+- `lib/linkread.js` — a video's lines read from its link by Gemini: the call, the checks.
 - `lib/transcript.js` — a transcript pasted from YouTube's panel, read into lines.
 - `lib/pictures.js` — lines read out of pictures (screenshots of the transcript): the call, the checks, the merge.
 - `lib/tv.js` — photos from the TV: stored, the subtitle read, the French worked out, the tally.

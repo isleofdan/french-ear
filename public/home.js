@@ -50,11 +50,14 @@
       linkGo.disabled = false;
       return;
     }
-    linkGo.textContent = withPictures ? 'Reading your screenshots… this can take a minute' : pasted ? 'Reading your transcript…' : 'Reading the captions…';
+    linkGo.textContent = withPictures ? 'Reading your screenshots… this can take a minute' : pasted ? 'Reading your transcript…' : 'Reading the video…';
     try {
       const v = withPictures
         ? await sendPictures(link.value, [...pictures.files], sharedCount ? sharedToken : null)
         : await api('POST', '/api/videos', pasted ? { link: link.value, transcript: pasted } : { link: link.value });
+      // A link alone: Gemini reads the video in the background, and the
+      // video's page follows it.
+      if (v.reading && v.page) { location.href = v.page; return; }
       const t = v.start_s ? '&t=' + v.start_s : '';
       location.href = '/watch?id=' + v.id + t;
     } catch (err) {
