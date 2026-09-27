@@ -10,6 +10,9 @@
 // "Which pattern?" comes after, before the patterns are named. A round ends
 // with how many he knew and the ones that got past him.
 // Nothing is kept about a round once he leaves: no score history, no timer.
+// Some channels (Easy French) burn their subtitles into the picture, so while
+// the line is hidden a band covers the lower part of the player; it lifts
+// once he answers. "cover the picture" turns it off, remembered per device.
 (function () {
   const { api, el, topBar, clock, saidNode, shakySet } = window.FE;
   document.getElementById('top').replaceWith(topBar('/practice'));
@@ -46,6 +49,18 @@
   let player = null, playerReady = false, loaded = null, stopAt = null, pendingPlay = null;
   let items = [], at = 0, byId = {}, shaky = new Set();
   let knew = 0, missed = [];
+
+  // The band over the lower part of the player. covered: the line is hidden
+  // now; coverOn: the switch. Remembered in this browser only.
+  const COVER_KEY = 'fe.cover-picture';
+  let covered = false;
+  let coverOn = true;
+  try { coverOn = localStorage.getItem(COVER_KEY) !== 'off'; } catch (e) { /* storage blocked: on */ }
+  function setCovered(v) { covered = v; drawBand(); }
+  function drawBand() {
+    const band = document.getElementById('cover');
+    if (band) band.hidden = !(covered && coverOn);
+  }
 
   function hideCaptions() {
     try { if (player && player.unloadModule) { player.unloadModule('captions'); player.unloadModule('cc'); } } catch (e) { /* not offered */ }
@@ -153,6 +168,7 @@
     const clip = item.clip;
     const card = document.getElementById('card');
     card.textContent = '';
+    setCovered(true);
     const heard = { first: true };
     const hear = el('button', { type: 'button', class: 'primary hear', text: 'hear it' });
     const ask = el('div', { class: 'stack', hidden: true });
@@ -191,6 +207,7 @@
     }
 
     function reveal(right) {
+      setCovered(false);
       const v = right !== null ? verdict(right, right ? 'Knew it.' : 'Got past me.') : null;
       if (v) after.append(v);
       const line = asSaid(clip);
@@ -222,6 +239,7 @@
   }
 
   function drawEnd() {
+    setCovered(false);
     stopAt = null;
     try { if (player && playerReady) player.pauseVideo(); } catch (e) { /* ignore */ }
     const card = document.getElementById('card');
@@ -261,6 +279,17 @@
     drawItem(false);
   }
 
+  function coverSwitch() {
+    const input = el('input', { type: 'checkbox', id: 'cover-on' });
+    input.checked = coverOn;
+    input.addEventListener('change', () => {
+      coverOn = input.checked;
+      try { localStorage.setItem(COVER_KEY, coverOn ? 'on' : 'off'); } catch (e) { /* not remembered */ }
+      drawBand();
+    });
+    return el('label', { class: 'cover-switch', for: 'cover-on' }, [input, ' cover the picture']);
+  }
+
   async function drawRound() {
     const [list, pats] = await Promise.all([api('GET', '/api/pattern-list'), api('GET', '/api/patterns')]);
     for (const p of list.items) byId[p.id] = p;
@@ -273,7 +302,13 @@
         el('h1', { class: 'title', text: name }),
         which === 'mix' ? null : el('p', { class: 'note', style: 'margin:0', text: byId[which] ? byId[which].explain : '' }),
       ]),
-      el('div', { class: 'player-wrap' }, el('div', { class: 'player' }, el('div', { id: 'player-el' }))),
+      el('div', { class: 'player-wrap' }, [
+        el('div', { class: 'player' }, [
+          el('div', { id: 'player-el' }),
+          el('p', { class: 'cover', id: 'cover', hidden: true, text: 'covered until you answer' }),
+        ]),
+        coverSwitch(),
+      ]),
       el('section', { class: 'panel stack drill-card', id: 'card', 'aria-live': 'polite' }),
     );
     await newRound();

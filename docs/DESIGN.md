@@ -35,6 +35,13 @@ third-party analytics, no shared register.
   see it as said and the pattern named. No synthetic audio, no invented
   sentence, no model call. Typed lines and photos from the TV have no clip.
   A round is forgotten when he leaves it: no scores by day, nothing due.
+  Some channels (Easy French) burn their own subtitles into the picture, so
+  while the line is hidden a band in the page's color covers the lower 35%
+  of the player, down to its bottom edge, "covered until you answer"; it
+  lifts when he answers or taps "show the line" and returns for the next
+  clip. Taps pass through it to the player. "cover the picture", on by
+  default and remembered on each device, turns it off for channels with no
+  text in the picture.
 
 ## Nothing pushes
 
@@ -103,4 +110,4 @@ written and as said side by side, with "In this episode" to the right.
 "as written", "as you'll hear it", "keep", "got past me", "solid", "shaky",
 "seen, no trouble yet", "not met yet", "Follow along", "Ear first", "What was
 that?", "Practice", "Mix", "hear it", "play again", "What was said?", "Which
-pattern?", "knew it". No invented names for features.
+pattern?", "knew it", "cover the picture", "covered until you answer". No invented names for features.
