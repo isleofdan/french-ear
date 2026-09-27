@@ -150,3 +150,7 @@ pictures, the cost line from the Fly log, the Share diagnosis).
   screens in `docs/screenshots/` (`practice-home-*`, `drill-hidden-*`,
   `drill-right-*`, `drill-wrong-*`, `drill-end-*`, `drill-mix-phone-light`).
 - Report: `docs/reports/french-ear-drills-report.md`.
+
+## Close-out, passphrase (french-ear-passphrase, 27 Sep 2026)
+
+- The deploy now sets `APP_PASSWORD` on Fly from the repository secret on every run (as `isleofdan/miwa-english` does), so changing it in GitHub and re-running the deploy resets it; `COOKIE_SECRET` stays made once and kept. Sign-in ignores spaces at either end of what is typed (`test/auth.test.js`).

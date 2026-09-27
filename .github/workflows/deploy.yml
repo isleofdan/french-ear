@@ -1,6 +1,7 @@
 # Deploys French ear to Fly. Runs on a push to main, or by hand from the
-# Actions tab. Creates the app and its volume the first time, sets each
-# secret only if it is not already set, then deploys and checks the site.
+# Actions tab. Creates the app and its volume the first time, sets the
+# passphrase from the repository secret on every run and each other secret
+# only if it is not already set, then deploys and checks the site.
 #
 # Repository secrets it needs: FLY_API_TOKEN (a Fly token for Dan's personal
 # org that can create apps), APP_PASSWORD, OPENROUTER_API_KEY.
@@ -72,6 +73,15 @@ jobs:
             flyctl volumes create "$VOLUME" --region "$REGION" --size 1 --app "$APP" --yes
           fi
 
+      # The passphrase follows the repository secret on every deploy, so
+      # changing APP_PASSWORD in GitHub and re-running this resets it.
+      - name: Set the passphrase from the repository secret
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        run: |
+          flyctl secrets set --app "$APP" --stage "APP_PASSWORD=$APP_PASSWORD" >/dev/null
+          echo "APP_PASSWORD staged from the repository secret."
+
       - name: Set the secrets that are not set yet
         env:
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
@@ -86,7 +96,6 @@ jobs:
             flyctl secrets set --app "$APP" --stage "$name=$value" >/dev/null
             echo "$name staged."
           }
-          set_if_missing APP_PASSWORD "$APP_PASSWORD"
           set_if_missing OPENROUTER_API_KEY "$OPENROUTER_API_KEY"
           set_if_missing COOKIE_SECRET "$(openssl rand -hex 32)"
 
