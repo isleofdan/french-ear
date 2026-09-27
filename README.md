@@ -60,7 +60,10 @@ overrides it), one OpenRouter call per video, with the request's provider
 routing pinned to Google AI Studio (`provider: { only: ["google-ai-studio"],
 allow_fallbacks: false }`; `LINK_PROVIDER` overrides the name): OpenRouter's
 video page says only Gemini served by Google AI Studio accepts YouTube links.
-There is no second model: no other can read the link. Each line is checked
+There is no second model: no other can read the link. Before the call,
+YouTube is asked whether the video exists: Gemini, given a dead link, writes
+plausible lines anyway (seen live, 27 Sep), so a video YouTube calls
+unavailable is refused without asking Gemini. Each line is checked
 (`checkLinkLine`): the start reads as a time and never goes backwards, the end
 is not before the start, the text is not empty; a bad line is dropped and
 counted, and fewer than three good lines is a refusal, shown as "Gemini

@@ -127,6 +127,7 @@ const shot = (page, name) => page.screenshot({ path: join(out, `${name}.png`), f
   await page.waitForURL(/\/watch\?yt=frManual001/);
   check('a link alone goes to the video\'s page while Gemini reads it', true);
   await page.waitForURL(/\/watch\?id=\d+/, { timeout: 20000 });
+  await page.waitForSelector('#readback:not([hidden])');
   check('the page says where the lines came from', /read from the video by Gemini/.test(await page.locator('#sub').innerText()));
   check('"Here\'s what Gemini heard" shows the first three lines', (await page.locator('#readback-head').innerText()) === 'Here’s what Gemini heard'
     && /0:00\s+Bonjour à tous\./.test(await page.locator('#readback-lines li').first().innerText()));
