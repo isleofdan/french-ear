@@ -57,6 +57,6 @@ Session french-ear-six, run in a cloud session (`flyctl` not present). The brief
 
 ## Asks
 
-1. **Have a French listener compare a few link-read lines with the audio** (the Paris episode, first minute) to settle item 3? **Recommended: yes**, as one small task for whoever next speaks French near this (Dan's father himself is the natural one). No code needed; the result decides whether the "as written" side needs a rule for Gemini's normalizing.
+1. **Have a French listener compare a few link-read lines with the audio** (the Paris episode, first minute) to settle item 3? **Recommended: yes**, as one small task for someone who speaks French. No code needed; the result decides whether the "as written" side needs a rule for Gemini's normalizing.
 2. **Fold "read the link-read cost from the Fly log" into the laptop session with session five's items?** **Recommended: yes.** It is one command on the laptop, and the README's cost line stays empty until then.
 3. **Run the error analysis Dan deferred** (a session asking Dan, a non-French-speaker, to pick a French video when it could have found one)? **Recommended: yes, when Dan calls it up.** It is his decision, recorded here so the deferral stays visible.
