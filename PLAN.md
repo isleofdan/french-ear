@@ -154,3 +154,40 @@ pictures, the cost line from the Fly log, the Share diagnosis).
 ## Close-out, passphrase (french-ear-passphrase, 27 Sep 2026)
 
 - The deploy now sets `APP_PASSWORD` on Fly from the repository secret on every run (as `isleofdan/miwa-english` does), so changing it in GitHub and re-running the deploy resets it; `COOKIE_SECRET` stays made once and kept. Sign-in ignores spaces at either end of what is typed (`test/auth.test.js`).
+
+## Close-out, session six (french-ear-six, 27 Sep 2026)
+
+- **The band** (isleofdan/french-ear#11, merged, publish run 13 green): on
+  Practice, while the line is hidden, a band in the page's color covers the
+  lower 35% of the player, "covered until you answer"; it lifts when he
+  answers or taps "show the line", and returns for the next clip. "cover the
+  picture", on by default and remembered per device, turns it off. It runs
+  down to the player's bottom edge (Easy French's English subtitle sits
+  lowest); taps go through it. **Live, checked by Dan (27 Sep, phone):**
+  covered while the clip played, lifted after answering.
+- **Tap the video once** (found live, 27 Sep): Dan's phone would not let the
+  page start the video until the video itself had been tapped. A note now
+  says "Tap the video once to start it" when a clip asked to play has not
+  started after a moment; it goes once the video plays.
+- **The link read by Gemini** (`lib/linkread.js`): a link alone goes to
+  `google/gemini-2.5-flash` through OpenRouter, the YouTube watch link as a
+  `video_url` part, provider pinned to Google AI Studio (`only`,
+  `allow_fallbacks: false`; the field as OpenRouter documents it, unverified
+  from here: its docs were blocked). JSON back, every sentence with start and
+  end in ordinary written French; each line checked, bad ones dropped and
+  counted, fewer than three a refusal. In the background: the video's page
+  shows "Reading the video… this can take a minute or two" with the
+  screenshots and the paste box under it, then the lines, or "Gemini
+  couldn't read this video: …". Saved with `caption_track = 'gemini'`, then
+  the same joining and "as said" pass as a paste. "Read the video again"
+  (under "Add the transcript again") replaces a saved video's lines.
+  YouTube's caption fetch stays, behind "Try YouTube again". The log line
+  `link-read: … cost $…` gives the cost per video.
+- Checks: `npm test` 101 (92 before): the link read's checks with a
+  false-rejection case (accents, both apostrophes, hours, fractions, a
+  missing end), a bad line dropped, too few refused, refusals from OpenRouter
+  and from Gemini, a re-read replacing lines. Browser run: the band, the
+  switch, the tap note, the reading and refused screens
+  (`docs/screenshots/watch-reading-*`, `watch-read-refused-*`,
+  `drill-tap-hint-phone-light`).
+- Report: `docs/reports/french-ear-six-report.md`.

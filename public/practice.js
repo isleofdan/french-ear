@@ -13,6 +13,9 @@
 // Some channels (Easy French) burn their subtitles into the picture, so while
 // the line is hidden a band covers the lower part of the player; it lifts
 // once he answers. "cover the picture" turns it off, remembered per device.
+// A phone may refuse to let the page start the video until the video itself
+// has been tapped once (seen live, 27 Sep): when a clip asked to play has not
+// started after a moment, a note says to tap the video.
 (function () {
   const { api, el, topBar, clock, saidNode, shakySet } = window.FE;
   document.getElementById('top').replaceWith(topBar('/practice'));
@@ -47,6 +50,7 @@
   // --- a round ---------------------------------------------------------------
 
   let player = null, playerReady = false, loaded = null, stopAt = null, pendingPlay = null;
+  let everPlayed = false, tapTimer = null;
   let items = [], at = 0, byId = {}, shaky = new Set();
   let knew = 0, missed = [];
 
@@ -80,6 +84,24 @@
       }
     } catch (e) { /* ignore */ }
     hideCaptions();
+    clearTimeout(tapTimer);
+    if (!everPlayed) tapTimer = setTimeout(checkStarted, 1500);
+  }
+
+  // YouTube's states: 1 playing, 3 buffering. Anything else a moment after
+  // "hear it", before any clip has played: the phone is waiting for a tap on
+  // the video itself.
+  function checkStarted() {
+    let st;
+    try { st = player.getPlayerState(); } catch (e) { return; }
+    if (st === 1 || st === 3) { everPlayed = true; return; }
+    const hint = document.getElementById('tap-hint');
+    if (hint) hint.hidden = false;
+  }
+  function started() {
+    everPlayed = true;
+    const hint = document.getElementById('tap-hint');
+    if (hint) hint.hidden = true;
   }
 
   // Stops at the clip's end. Only within three seconds past it: right after
@@ -113,6 +135,7 @@
             hideCaptions();
             if (pendingPlay) { const c = pendingPlay; pendingPlay = null; play(c); }
           },
+          onStateChange: (e) => { if (e.data === 1) started(); },
         },
       });
     };
@@ -307,6 +330,7 @@
           el('div', { id: 'player-el' }),
           el('p', { class: 'cover', id: 'cover', hidden: true, text: 'covered until you answer' }),
         ]),
+        el('p', { class: 'tap-hint', id: 'tap-hint', hidden: true, role: 'status', text: 'Tap the video once to start it. Your phone needs that the first time; after that, the clips play by themselves.' }),
         coverSwitch(),
       ]),
       el('section', { class: 'panel stack drill-card', id: 'card', 'aria-live': 'polite' }),

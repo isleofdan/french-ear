@@ -18,19 +18,53 @@
 //   MAUVAIS  -> the answer names a pattern that is not in the list
 //   DOUTE    -> the answer is sure = low (a guess)
 //   PANNE-TV -> every model answers 500
-// GET /calls answers { calls, models } so a check can see who was asked.
+// A call carrying a video link (the transcript read from a YouTube link) is
+// answered from LINK_READS below by the video's id, the way Gemini would:
+// sentences in ordinary written French, times as m:ss. A video it does not
+// know answers 404 the way OpenRouter does when no provider can serve the
+// request, so a bare link to one of the caption mocks is refused.
+// GET /calls answers { calls, models, videos } so a check can see who was
+// asked; `videos` holds each video call's model, provider and link.
 //   node scripts/mock-openrouter.mjs [port] [first-model-id] [first-picture-model-id]
 import http from 'node:http';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { answerFor } from './fixtures.mjs';
+import { answerFor, VIDEO_LINES } from './fixtures.mjs';
 
 const port = Number(process.argv[2]) || 8802;
 const firstModel = process.argv[3] || 'anthropic/claude-sonnet-4.6';
 const firstPictureModel = process.argv[4] || 'google/gemini-2.5-flash';
 const models = [];
+const videos = [];
+
+// m:ss, whole seconds, as Gemini writes them.
+const mss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+// The mock videos' lines (3.5 seconds each) as Gemini would time them.
+const asHeard = (lines) => lines.map((text, i) => ({ start: mss(i * 3.5 + 0.5), end: mss(i * 3.5 + 3.7), text }));
+const LINK_READS = {
+  frManual001: { lines: asHeard(VIDEO_LINES) },
+  // slow, then refused the way OpenRouter refuses: for the screens of the
+  // "Reading the video…" state and of a refusal
+  slowRefuse1: { refuse: true, delay_ms: 6000 },
+  // a good read with one line that fails the checks (its time is not a time)
+  geminiGood1: { lines: [
+    ...asHeard(VIDEO_LINES.slice(0, 5)),
+    { start: 'bientôt', end: '0:20', text: 'Une ligne sans heure.' },
+    { start: '0:21', end: '0:24', text: "Qu’est-ce qu'il y a là-bas, à côté de l’église ?" },
+  ] },
+  // a second read of the same video, shorter: for "read it again" replacing
+  geminiAgain: { lines: asHeard(VIDEO_LINES.slice(0, 4)) },
+  // two good lines and two bad: fewer than three, a refusal
+  geminiFew01: { lines: [
+    { start: '0:01', end: '0:03', text: 'Bonjour à tous.' },
+    { start: '0:04', end: '0:02', text: 'La fin avant le début.' },
+    { start: '0:06', end: '0:08', text: '' },
+    { start: '0:09', end: '0:12', text: 'Je ne sais pas ce que tu veux dire.' },
+  ] },
+  geminiNone1: { lines: [] },
+};
 
 const TV_ANSWERS = {
   "There's something wrong.": {
@@ -76,13 +110,31 @@ function pictureReply(r) {
 http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/calls') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    return res.end(JSON.stringify({ calls: models.length, models }));
+    return res.end(JSON.stringify({ calls: models.length, models, videos }));
   }
   let body = '';
   req.on('data', (c) => { body += c; });
   req.on('end', () => {
     const r = JSON.parse(body);
     models.push(r.model);
+    const video = Array.isArray(r.messages[1].content) && r.messages[1].content.find((c) => c.type === 'video_url');
+    if (video) {
+      const url = video.video_url.url;
+      videos.push({ model: r.model, provider: r.provider || null, url });
+      const id = (url.match(/[?&]v=([A-Za-z0-9_-]{11})/) || [])[1];
+      // a second read of geminiGood1 answers geminiAgain's lines
+      const seen = videos.filter((v) => v.url === url).length;
+      const known = LINK_READS[id === 'geminiGood1' && seen > 1 ? 'geminiAgain' : id];
+      const send = () => {
+        if (!known || known.refuse) {
+          res.writeHead(404, { 'content-type': 'application/json' });
+          return res.end(JSON.stringify({ error: { code: 404, message: 'No endpoints found that support video input (mock)' } }));
+        }
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: JSON.stringify({ lines: known.lines }) }, finish_reason: 'stop' }], usage: { prompt_tokens: 158000, completion_tokens: 4300, cost: 0.058 } }));
+      };
+      return known && known.delay_ms ? setTimeout(send, known.delay_ms) : send();
+    }
     if (Array.isArray(r.messages[1].content)) {
       const [status, out] = pictureReply(r);
       res.writeHead(status, { 'content-type': 'application/json' });
